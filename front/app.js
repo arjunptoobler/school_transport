@@ -70,7 +70,7 @@ const MOCK_INCIDENTS = [
 
 // Load driver/vehicle tables from API
 async function loadFleetData() {
-  const data = await apiFetch("/fleet_status");
+  const data = await apiFetch("/fleet/status");
   const tbody = document.getElementById('driver-tbody');
   const vlist = document.getElementById('vehicle-list');
   
@@ -117,7 +117,7 @@ async function loadFleetData() {
 // Load incident queue from API
 let activeIncidents = [];
 async function loadIncidentsData() {
-  const data = await apiFetch("/incidents");
+  const data = await apiFetch("/incidents/");
   activeIncidents = data || MOCK_INCIDENTS;
   renderIncidentsList();
 }
@@ -152,7 +152,6 @@ function renderIncidentsList() {
 function selectIncident(inc) {
   document.querySelectorAll('.incident-item').forEach(el => el.classList.remove('selected'));
   
-  // Find matching items in list to highlight
   const items = document.querySelectorAll('.incident-item');
   items.forEach(el => {
     if (el.innerHTML.includes(inc.incident_id)) el.classList.add('selected');
@@ -218,7 +217,7 @@ async function triggerNewIncident() {
     description: "Speed violation: Bus exceeded school zone speed limit on Sultan Bin Zayed St."
   };
   
-  const res = await apiFetch("/simulate_incident", {
+  const res = await apiFetch("/incidents/simulate", {
     method: "POST",
     body: JSON.stringify(payload)
   });
@@ -338,7 +337,7 @@ async function runRAGQuery() {
   
   resDiv.innerHTML = "Searching Vector Database (ChromaDB index of ADEK policies)...";
   
-  const res = await apiFetch("/query_policy", {
+  const res = await apiFetch("/policy/query", {
     method: "POST",
     body: JSON.stringify({ query })
   });
@@ -444,7 +443,7 @@ async function runScenario(num) {
   resetDiagramHighlights();
   
   // Call API Endpoint
-  const res = await apiFetch("/run_scenario", {
+  const res = await apiFetch("/agents/run_scenario", {
     method: "POST",
     body: JSON.stringify({ scenario_id: num })
   });
@@ -494,7 +493,6 @@ async function runScenario(num) {
 }
 
 function getFallbackHistory(num) {
-  // Hardcoded fallback if backend is down
   const history = [
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
