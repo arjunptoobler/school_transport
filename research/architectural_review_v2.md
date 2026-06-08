@@ -12,6 +12,7 @@ An updated review confirming how all architectural criticisms identified in V1 h
 | **ChromaDB Connection Overhead** | Implemented a lazy singleton connection pool. | **Verified** — Thread-safe and persistent across API queries. | [`vector_db.py`](file:///home/toobler/Desktop/Arjun/school_transport/backend/rag/vector_db.py) |
 | **Rigid Scenario Routing** | Introduced LLM autonomous routing/classification when scenario is not preset. | **Verified** — Tested successfully with free-form safety query. | [`supervisor.py`](file:///home/toobler/Desktop/Arjun/school_transport/backend/agents/supervisor.py) |
 | **Context Length Accumulation** | Replaced state dictionary copies with local list updates. | **Verified** — Keeps graph execution context lightweight. | [`safety.py`](file:///home/toobler/Desktop/Arjun/school_transport/backend/agents/safety.py) |
+| **Hardcoded Parameter Values** | Extracted query metadata parsing to a dynamic `parser.py` module. | **Verified** — Drivers, vehicles, and RAG topics are extracted at runtime. | [`parser.py`](file:///home/toobler/Desktop/Arjun/school_transport/backend/agents/parser.py) |
 
 ---
 
@@ -50,6 +51,14 @@ The Supervisor Agent can now dynamically route custom user inquiries using the G
 - `compliance` (permits, licensing)
 - `executive` (reports, analytics)
 This achieves a production-ready balance between structured safety execution and conversational flexibility.
+
+### Dynamic Entity Extraction (No Hardcoding)
+Introduced the `parser.py` module to extract entity parameters from the state context at runtime:
+1. Matches IDs from free-text user queries using regex patterns (e.g. `DRV-1025`, `AU-BUS-101`).
+2. Pulls appropriate fallbacks from active SQLite database records when queries don't specify them (e.g. fetching valid vehicles or suspended drivers dynamically).
+3. Generates relevant search topics dynamically for ChromaDB query matching.
+
+All agent nodes now invoke `extract_entities(state)` dynamically to parameterize their MCP tool calls, completely eliminating hardcoded string identifiers.
 
 ---
 
