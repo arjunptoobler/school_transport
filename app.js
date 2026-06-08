@@ -1,3 +1,21 @@
+// --- API ENDPOINT URL ---
+const API_URL = "http://localhost:8000/api";
+
+// Helper to handle API requests with fallback
+async function apiFetch(endpoint, options = {}) {
+  try {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options
+    });
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn(`API error at ${endpoint}, falling back to mock:`, err);
+    return null;
+  }
+}
+
 // --- SYSTEM TIME ---
 function updateTime() {
   const now = new Date();
@@ -16,40 +34,217 @@ function switchTab(tabId) {
   document.getElementById(`section-${tabId}`).classList.add('active');
   activeTab = tabId;
   
-  // Re-render maps/charts if visible
   if (tabId === 'fleet') {
     initMap();
   }
+  if (tabId === 'compliance') {
+    loadFleetData();
+  }
+  if (tabId === 'incidents') {
+    loadIncidentsData();
+  }
 }
 
-// --- MOCK DATA ---
-const DRIVERS = [
-  { id: 'DRV-1024', name: 'Zayed Al Mansoori', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' },
-  { id: 'DRV-2089', name: 'Ahmed Al Hashimi', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' },
-  { id: 'DRV-1152', name: 'Mustafa Mahmoud', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' },
-  { id: 'DRV-3041', name: 'John Doe', permit: 'Valid', medical: 'Passed', training: 'Pending Refresher', status: 'Warning' },
-  { id: 'DRV-4412', name: 'Yousef Hassan', permit: 'Suspended', medical: 'Expired', training: 'Failed Evaluation', status: 'Non-Compliant' },
-  { id: 'DRV-1982', name: 'Saeed Al Remeithi', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' },
-  { id: 'DRV-2201', name: 'Khalid Al Zaabi', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' },
-  { id: 'DRV-1044', name: 'Tareq Al Junaibi', permit: 'Valid', medical: 'Passed', training: 'Complete', status: 'Compliant' }
+// --- MOCK FALLBACK DATA ---
+const MOCK_DRIVERS = [
+  { driver_id: 'DRV-1024', name: 'Zayed Al Mansoori', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Emirates Transport' },
+  { driver_id: 'DRV-2089', name: 'Ahmed Al Hashimi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Al Ghazal Transport' },
+  { driver_id: 'DRV-1152', name: 'Mustafa Mahmoud', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Hafilat School' },
+  { driver_id: 'DRV-3041', name: 'John Doe', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Pending Refresher', operator: 'Abu Dhabi Transport' },
+  { driver_id: 'DRV-4412', name: 'Yousef Hassan', permit_status: 'Suspended', medical_status: 'Expired', training_status: 'Failed Evaluation', operator: 'Emirates Transport' }
 ];
 
-const VEHICLES = [
-  { id: 'AU-BUS-101', plate: 'AD 12093', age: 3, gps: 'online', status: 'ok' },
-  { id: 'AU-BUS-102', plate: 'AD 88301', age: 1, gps: 'online', status: 'ok' },
-  { id: 'AU-BUS-103', plate: 'AD 44521', age: 5, gps: 'online', status: 'ok' },
-  { id: 'AU-BUS-104', plate: 'AD 10294', age: 7, gps: 'offline', status: 'warn' },
-  { id: 'AU-BUS-105', plate: 'AD 90912', age: 9, gps: 'online', status: 'bad' }, // Needs replacement soon
-  { id: 'AU-BUS-106', plate: 'AD 33291', age: 2, gps: 'online', status: 'ok' },
-  { id: 'AU-BUS-107', plate: 'AD 77102', age: 4, gps: 'online', status: 'ok' }
+const MOCK_VEHICLES = [
+  { vehicle_id: 'AU-BUS-101', license_plate: 'AD 12093', age: 3, gps_status: 'online', inspection_status: 'valid' },
+  { vehicle_id: 'AU-BUS-102', license_plate: 'AD 88301', age: 1, gps_status: 'online', inspection_status: 'valid' },
+  { vehicle_id: 'AU-BUS-103', license_plate: 'AD 44521', age: 5, gps_status: 'online', inspection_status: 'valid' },
+  { vehicle_id: 'AU-BUS-104', license_plate: 'AD 10294', age: 7, gps_status: 'offline', inspection_status: 'failed' },
+  { vehicle_id: 'AU-BUS-105', license_plate: 'AD 90912', age: 9, gps_status: 'online', inspection_status: 'valid' }
 ];
 
-const INCIDENTS = [
-  { id: 'INC-2026-882', severity: 'high', type: 'Driver Distraction', driver: 'Yousef Hassan', vehicle: 'AU-BUS-105', time: '10 mins ago', desc: 'Safety Agent detected driver using mobile device via cabin camera.' },
-  { id: 'INC-2026-881', severity: 'med', type: 'Missing Guardian', driver: 'Ahmed Al Hashimi', vehicle: 'AU-BUS-102', time: '25 mins ago', desc: 'No guardian present at Handover Point 4. Student retained on vehicle.' },
-  { id: 'INC-2026-880', severity: 'med', type: 'Inspection Failure', driver: 'John Doe', vehicle: 'AU-BUS-104', time: '1 hour ago', desc: 'Pre-trip compliance check failed. Braking pressure below ADEK safety threshold.' },
-  { id: 'INC-2026-879', severity: 'low', type: 'Minor Delay', driver: 'Mustafa Mahmoud', vehicle: 'AU-BUS-115', time: '2 hours ago', desc: 'Heavy traffic on Sheikh Zayed Bin Sultan St. Route updated.' }
+const MOCK_INCIDENTS = [
+  { incident_id: 'INC-2026-882', severity: 'high', type: 'Driver Distraction', driver_id: 'DRV-4412', vehicle_id: 'AU-BUS-105', timestamp: '10 mins ago', description: 'Safety Agent detected driver using mobile device via cabin camera.' },
+  { incident_id: 'INC-2026-881', severity: 'med', type: 'Missing Guardian', driver_id: 'DRV-2089', vehicle_id: 'AU-BUS-102', timestamp: '25 mins ago', description: 'No guardian present at Handover Point 4. Student retained on vehicle.' },
+  { incident_id: 'INC-2026-880', severity: 'med', type: 'Inspection Failure', driver_id: 'DRV-3041', vehicle_id: 'AU-BUS-104', timestamp: '1 hour ago', description: 'Pre-trip compliance check failed. Braking pressure below ADEK safety threshold.' }
 ];
+
+// Load driver/vehicle tables from API
+async function loadFleetData() {
+  const data = await apiFetch("/fleet_status");
+  const tbody = document.getElementById('driver-tbody');
+  const vlist = document.getElementById('vehicle-list');
+  
+  if (!tbody || !vlist) return;
+  tbody.innerHTML = '';
+  vlist.innerHTML = '';
+  
+  const drivers = (data && data.drivers) ? data.drivers : MOCK_DRIVERS;
+  const vehicles = (data && data.vehicles) ? data.vehicles : MOCK_VEHICLES;
+  
+  drivers.forEach(drv => {
+    let stClass = 'sp-ok';
+    if (drv.training_status.includes('Pending')) stClass = 'sp-warn';
+    if (drv.permit_status === 'Suspended') stClass = 'sp-fail';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${drv.driver_id}</strong></td>
+      <td>${drv.name}</td>
+      <td>${drv.permit_status}</td>
+      <td>${drv.medical_status}</td>
+      <td>${drv.training_status}</td>
+      <td><span class="status-pill ${stClass}">${drv.permit_status === 'Valid' ? 'Compliant' : drv.permit_status}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  vehicles.forEach(veh => {
+    let stClass = 'vs-ok';
+    if (veh.gps_status === 'offline') stClass = 'vs-warn';
+    if (veh.inspection_status === 'failed') stClass = 'vs-bad';
+    
+    const item = document.createElement('div');
+    item.className = 'veh-item';
+    item.innerHTML = `
+      <span class="veh-plate">${veh.license_plate}</span>
+      <span>Age: ${veh.age}y</span>
+      <span class="veh-status ${stClass}">${veh.inspection_status.toUpperCase()}</span>
+    `;
+    vlist.appendChild(item);
+  });
+}
+
+// Load incident queue from API
+let activeIncidents = [];
+async function loadIncidentsData() {
+  const data = await apiFetch("/incidents");
+  activeIncidents = data || MOCK_INCIDENTS;
+  renderIncidentsList();
+}
+
+function renderIncidentsList() {
+  const list = document.getElementById('incident-list');
+  if (!list) return;
+  list.innerHTML = '';
+  
+  activeIncidents.forEach(inc => {
+    const item = document.createElement('div');
+    item.className = 'incident-item';
+    item.onclick = () => selectIncident(inc);
+    
+    const timeDisplay = inc.timestamp.includes('T') ? inc.timestamp.split('T')[1].substring(0, 5) : inc.timestamp;
+    
+    item.innerHTML = `
+      <div class="ii-header">
+        <span class="ii-id">${inc.incident_id}</span>
+        <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
+      </div>
+      <div class="ii-title">${inc.type}</div>
+      <div class="ii-meta">Bus: ${inc.vehicle_id} · Driver: ${inc.driver_id} · ${timeDisplay}</div>
+    `;
+    list.appendChild(item);
+  });
+  
+  const badge = document.getElementById('incident-count-badge');
+  if (badge) badge.innerText = `${activeIncidents.length} Open`;
+}
+
+function selectIncident(inc) {
+  document.querySelectorAll('.incident-item').forEach(el => el.classList.remove('selected'));
+  
+  // Find matching items in list to highlight
+  const items = document.querySelectorAll('.incident-item');
+  items.forEach(el => {
+    if (el.innerHTML.includes(inc.incident_id)) el.classList.add('selected');
+  });
+  
+  const detail = document.getElementById('incident-detail');
+  detail.innerHTML = `
+    <div class="card-header">
+      <span class="card-title">🚨 Incident Details & Agent Flow</span>
+      <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
+    </div>
+    <div class="incident-detail-content">
+      <p style="font-size:1rem;font-weight:700;margin-bottom:.5rem">${inc.type}</p>
+      <p style="color:var(--text2);margin-bottom:1rem">${inc.description}</p>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
+        <div><strong>Driver ID:</strong> ${inc.driver_id}</div>
+        <div><strong>Vehicle ID:</strong> ${inc.vehicle_id}</div>
+      </div>
+      
+      <strong style="font-size:.8rem;display:block;margin-top:1rem">🤖 Multi-Agent Escalation Flow:</strong>
+      <div class="agent-flow-viz">
+        <div class="flow-step fs-done">
+          <span class="fs-icon">🛡️</span>
+          <div>
+            <strong>Safety Agent (Evaluated)</strong>
+            <div style="font-size:.7rem">Risk evaluation score: High. Mobile phone usage verified.</div>
+          </div>
+        </div>
+        <div class="flow-step fs-active">
+          <span class="fs-icon">✅</span>
+          <div>
+            <strong>Compliance Agent (Reviewing)</strong>
+            <div style="font-size:.7rem">Reviewing history logs in fleet db. 3 past entries.</div>
+          </div>
+        </div>
+        <div class="flow-step fs-pending">
+          <span class="fs-icon">🚨</span>
+          <div>
+            <strong>Incident Agent (Pending)</strong>
+            <div style="font-size:.7rem">Awaiting policy assessment confirmation.</div>
+          </div>
+        </div>
+      </div>
+      
+      <strong style="font-size:.8rem;display:block;margin-top:1rem">🛠️ Remediation Tasks:</strong>
+      <div class="action-items">
+        <div class="action-item">SMS sent to ADEK Central Dispatch</div>
+        <div class="action-item">Driver compliance status marked: SUSPENDED</div>
+        <div class="action-item">Automated retraining task queued in LMS portal</div>
+      </div>
+    </div>
+  `;
+}
+
+// Simulate new incident by calling POST endpoint
+async function triggerNewIncident() {
+  const payload = {
+    severity: "high",
+    type: "Speed Violation",
+    driver_id: "DRV-1024",
+    vehicle_id: "AU-BUS-101",
+    description: "Speed violation: Bus exceeded school zone speed limit on Sultan Bin Zayed St."
+  };
+  
+  const res = await apiFetch("/simulate_incident", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  
+  if (res && res.success) {
+    activeIncidents.unshift(res.incident);
+    renderIncidentsList();
+    selectIncident(res.incident);
+    addAlertItem({ type: 'crit', text: `INCIDENT TRIPPED: Speeding violation on vehicle ${res.incident.vehicle_id}` });
+  } else {
+    // Local fallback
+    const localInc = {
+      incident_id: 'INC-2026-' + Math.floor(1000 + Math.random() * 9000),
+      severity: 'high',
+      type: 'Speed Violation',
+      driver_id: 'DRV-1024',
+      vehicle_id: 'AU-BUS-101',
+      timestamp: 'Just now',
+      description: 'Speed violation: Bus exceeded school zone speed limit on Sultan Bin Zayed St.'
+    };
+    activeIncidents.unshift(localInc);
+    renderIncidentsList();
+    selectIncident(localInc);
+    addAlertItem({ type: 'crit', text: `INCIDENT TRIPPED: Speeding violation on vehicle ${localInc.vehicle_id}` });
+  }
+}
 
 // --- CHARTS ---
 let complianceChart, violationChart, execChart, riskChart;
@@ -135,40 +330,38 @@ function initCharts() {
   }
 }
 
-// --- RAG DEMO ---
-const RAG_RESPONSES = {
-  'guardian handover': `<strong>ADEK Regulation 14.2 (Guardian Handover Policy):</strong><br>
-    - Students under Grade 3 / Age 9 MUST NOT be left unattended at drop-off points.<br>
-    - If no authorized guardian is present, the driver/supervisor must retain the student on the vehicle.<br>
-    - Notify control room immediately. Return student to school after finishing the route or to the designated precinct security.`,
-  'mobile usage': `<strong>Abu Dhabi Mobility Driver Rules (Violations & Fines):</strong><br>
-    - Direct phone usage or device viewing while operating a school bus incurs a AED 5,000 fine and immediate suspension of the transport permit.<br>
-    - Re-evaluation by Abu Dhabi Mobility board is mandatory before permit reinstatement.`,
-  'inspection': `<strong>ADEK Compliance Checklist (Daily Pre-trip):</strong><br>
-    - Weekly tire pressure, brake systems, seatbelts, safety cameras, and HVAC operation checks.<br>
-    - Failing key items (e.g. brakes or HVAC during summer months) automatically marks the vehicle as "Grounded" under ADEK safety directive.`
-};
-
-function runRAGQuery() {
-  const query = document.getElementById('rag-query').value.toLowerCase();
+// --- RAG POLICY QUERY ---
+async function runRAGQuery() {
+  const query = document.getElementById('rag-query').value;
   const resDiv = document.getElementById('rag-result');
-  resDiv.innerHTML = "Searching vector database (ChromaDB index of ADEK policies)...";
+  if (!query) return;
   
-  setTimeout(() => {
-    let matched = false;
-    for (const key in RAG_RESPONSES) {
-      if (query.includes(key)) {
-        resDiv.innerHTML = RAG_RESPONSES[key];
-        matched = true;
-        break;
+  resDiv.innerHTML = "Searching Vector Database (ChromaDB index of ADEK policies)...";
+  
+  const res = await apiFetch("/query_policy", {
+    method: "POST",
+    body: JSON.stringify({ query })
+  });
+  
+  if (res && res.success && res.results && res.results.length > 0) {
+    let html = "";
+    res.results.forEach(doc => {
+      html += `<strong>${doc.authority} ${doc.document} (${doc.section}):</strong><br>
+               ${doc.text}<br><br>`;
+    });
+    resDiv.innerHTML = html;
+  } else {
+    // Fallback search logic
+    setTimeout(() => {
+      if (query.toLowerCase().includes("handover") || query.toLowerCase().includes("guardian")) {
+        resDiv.innerHTML = `<strong>ADEK Regulation 14.2 (Guardian Handover Policy):</strong><br>
+          - Students under Grade 3 / Age 9 MUST NOT be left unattended at drop-off points.<br>
+          - If no authorized guardian is present, the driver/supervisor must retain the student on the vehicle.`;
+      } else {
+        resDiv.innerHTML = "No matching regulatory chunk found. Defaulting to general ADEK Transport Guideline (2026).";
       }
-    }
-    if (!matched) {
-      resDiv.innerHTML = `<strong>Search Result:</strong> No exact match. Showing nearest document chunks:<br>
-        - <em>ADEK Pupil Transportation Regulations Sec 5:</em> All buses must be equipped with active GPS and interior cameras.<br>
-        - <em>Abu Dhabi Department of Transport Policy Circular 2:</em> Summer cabin temperature must not exceed 24°C.`;
-    }
-  }, 800);
+    }, 500);
+  }
 }
 
 // --- MAP SIMULATOR ---
@@ -182,14 +375,11 @@ function initMap() {
   for (let i = 0; i < 15; i++) {
     const bus = document.createElement('div');
     bus.className = 'map-bus moving';
-    
-    // Position inside container coordinates
     const left = 10 + Math.random() * 80;
     const top = 10 + Math.random() * 80;
     bus.style.left = `${left}%`;
     bus.style.top = `${top}%`;
     
-    // Random status
     const statusRand = Math.random();
     if (statusRand > 0.9) {
       bus.className = 'map-bus alert';
@@ -202,25 +392,22 @@ function initMap() {
   }
 }
 
-// Move the buses slightly to simulate GPS tracking
+// Map ticker
 setInterval(() => {
   if (activeTab !== 'fleet') return;
   mapBuses.forEach(b => {
     if (b.status.includes('moving')) {
       b.l += (Math.random() - 0.5) * 2;
       b.t += (Math.random() - 0.5) * 2;
-      
-      // Keep within bounds
       if (b.l < 5) b.l = 5; if (b.l > 95) b.l = 95;
       if (b.t < 5) b.t = 5; if (b.t > 95) b.t = 95;
-      
       b.el.style.left = `${b.l}%`;
       b.el.style.top = `${b.t}%`;
     }
   });
 }, 2000);
 
-// --- ALERTS & FEED ---
+// --- ALERTS AND FEED ---
 const LIVE_ALERTS = [
   { type: 'info', text: 'Route AU-402 started successfully.' },
   { type: 'ok', text: 'Driver Zayed Al Mansoori completed pre-trip verification.' },
@@ -231,92 +418,38 @@ const LIVE_ALERTS = [
 function addAlertItem(alert) {
   const feed = document.getElementById('alert-feed');
   if (!feed) return;
-  
   const item = document.createElement('div');
   item.className = `alert-item ${alert.type}`;
-  
   const now = new Date();
   const timeStr = now.toTimeString().split(' ')[0];
-  
-  item.innerHTML = `
-    <span class="alert-time">[${timeStr}]</span>
-    <div>${alert.text}</div>
-  `;
-  
+  item.innerHTML = `<span class="alert-time">[${timeStr}]</span><div>${alert.text}</div>`;
   feed.prepend(item);
-  if (feed.children.length > 20) {
-    feed.removeChild(feed.lastChild);
-  }
+  if (feed.children.length > 20) feed.removeChild(feed.lastChild);
 }
 
-// Automatically add streaming logs to Command Center alert feed
-setInterval(() => {
-  const templates = [
-    { type: 'info', text: 'GPS heartbeat received from Route ' + Math.floor(Math.random() * 500) },
-    { type: 'ok', text: 'Compliance check passed for driver DRV-' + Math.floor(1000 + Math.random() * 4000) },
-    { type: 'info', text: 'Parent notified of ETA for Route AU-190' },
-    { type: 'warn', text: 'Traffic slowdown detected on Al Khaleej Al Arabi St.' }
-  ];
-  const choice = templates[Math.floor(Math.random() * templates.length)];
-  addAlertItem(choice);
-}, 5000);
-
-// --- AGENT CONVERSATION & SIMULATION LOGIC ---
-const AGENT_MESSAGES = {
-  // Scenario 1: Driver Mobile Usage
-  0: [
-    { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds. Alert issued to driver console.', tool: 'Tools used: Cabin Camera Edge Sensor, Incident MCP' },
-    { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinating. Querying Compliance Agent for driver history on DRV-4412.', tool: 'Tools used: A2A Direct Messaging' },
-    { agent: 'Compliance Agent', text: '✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings this quarter. Permit is subject to suspension.', tool: 'Tools used: Driver Database, PASS MCP' },
-    { agent: 'Safety Agent', text: '🛡️ Esculating risk profile: Severity HIGH based on repeated compliance failures.', tool: 'Tools used: Risk Evaluation engine' },
-    { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882. Sending SMS alerts to Operator Command and preparing safety training assignment.', tool: 'Tools used: Notification MCP, Incident Database' },
-    { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%. Recommending immediate driver stand-down.', tool: 'Tools used: Analytics MCP' }
-  ],
-  // Scenario 2: Missing Guardian
-  1: [
-    { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Tools used: Route Supervisor SOP App' },
-    { agent: 'Supervisor Agent', text: '🧠 Directing Safety Agent to query policy guidelines from Regulations RAG database.', tool: 'Tools used: LangGraph State Router' },
-    { agent: 'Compliance Agent', text: '📚 RAG Query: "Guardian handover rules". Result: Pupil must be retained on board. DO NOT release without guardian.', tool: 'Tools used: Shared Policy RAG (ChromaDB)' },
-    { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: "Student remains safely on bus. Bus will return student to School Guard hub at 16:30."', tool: 'Tools used: Notification MCP' },
-    { agent: 'Incident Agent', text: '🎫 Incident ticket INC-2026-881 filed with operator.', tool: 'Tools used: Incident Database' }
-  ],
-  // Scenario 3: Vehicle Inspection Failure
-  2: [
-    { agent: 'Compliance Agent', text: '❌ Pre-trip checklist failure: Bus AU-BUS-104 reported low brake pressure.', tool: 'Tools used: Pre-trip Forms MCP' },
-    { agent: 'Compliance Agent', text: '🚫 Auto-grounding vehicle in Fleet MCP registry. Operating permit marked: Suspended.', tool: 'Tools used: Fleet MCP' },
-    { agent: 'Supervisor Agent', text: '🧠 Fleet alert: AU-BUS-104 grounded. Routing Safety and Route Optimization agents.', tool: 'Tools used: LangGraph Orchestrator' },
-    { agent: 'Route Agent', text: '🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106 to pick up passengers from Sheikha Fatima School.', tool: 'Tools used: Route Optimization MCP' },
-    { agent: 'Incident Agent', text: '🚨 Triggered dispatch notification to transport operator maintenance.', tool: 'Tools used: Fleet Service Desk MCP' }
-  ],
-  // Scenario 4: Executive analysis
-  3: [
-    { agent: 'Supervisor Agent', text: '🧠 Question received: "Why did compliance decrease in March?"', tool: 'Tools used: LangGraph State Registry' },
-    { agent: 'Compliance Agent', text: '✅ Querying weekly violation logs. 18 driver training renewals missed during Ramadan shift adjustments.', tool: 'Tools used: Driver MCP, Policy RAG' },
-    { agent: 'Incident Agent', text: '🚨 Incident correlation: High incident volumes matched with newer routes launched in Khalifa City.', tool: 'Tools used: Incident MCP' },
-    { agent: 'Executive Agent', text: '📊 Synthesizing executive report. Compliance fell to 91% due to: 1. Training backlogs (60%), 2. Route delays in Khalifa City (40%). Recommending split shifts.', tool: 'Tools used: Analytics MCP' }
-  ]
-};
-
+// --- RUN AGENT SCENARIOS VIA FASTAPI ---
 let scenarioRunning = false;
-function runScenario(num) {
+async function runScenario(num) {
   if (scenarioRunning) return;
   scenarioRunning = true;
   
-  // Highlight card
   document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('running'));
   document.getElementById(`scenario-${num}`).classList.add('running');
   
-  // Clear conversation
   const conv = document.getElementById('agent-conversation');
   conv.innerHTML = '';
-  
   const monitor = document.getElementById('agent-monitor');
   monitor.innerHTML = '';
   
-  // Highlight diagram
   resetDiagramHighlights();
   
-  const messages = AGENT_MESSAGES[num];
+  // Call API Endpoint
+  const res = await apiFetch("/run_scenario", {
+    method: "POST",
+    body: JSON.stringify({ scenario_id: num })
+  });
+  
+  const messages = (res && res.success) ? res.history : getFallbackHistory(num);
   let idx = 0;
   
   function nextStep() {
@@ -327,8 +460,6 @@ function runScenario(num) {
     }
     
     const msg = messages[idx];
-    
-    // Add to conversation log
     const mDiv = document.createElement('div');
     mDiv.className = 'conv-msg';
     mDiv.innerHTML = `
@@ -339,7 +470,6 @@ function runScenario(num) {
     conv.appendChild(mDiv);
     conv.scrollTop = conv.scrollHeight;
     
-    // Add to top monitor
     const monitorItem = document.createElement('div');
     let badgeClass = 'ab-supervisor';
     if (msg.agent.includes('Compliance')) badgeClass = 'ab-compliance';
@@ -354,7 +484,6 @@ function runScenario(num) {
     `;
     monitor.prepend(monitorItem);
     
-    // Highlight diagram node
     highlightDiagramNode(msg.agent);
     
     idx++;
@@ -362,6 +491,37 @@ function runScenario(num) {
   }
   
   nextStep();
+}
+
+function getFallbackHistory(num) {
+  // Hardcoded fallback if backend is down
+  const history = [
+    [
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
+      { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds.', tool: 'Cabin Camera Edge Sensor, Incident MCP' },
+      { agent: 'Compliance Agent', text: '✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings.', tool: 'Driver Database, PASS MCP' },
+      { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882.', tool: 'Notification MCP, Incident Database' },
+      { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%.', tool: 'Analytics MCP' }
+    ],
+    [
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
+      { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Route Supervisor SOP App' },
+      { agent: 'Compliance Agent', text: '📚 RAG Query: "guardian handover rules". Result: Pupil must be retained.', tool: 'Shared Policy RAG (ChromaDB)' },
+      { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: Student remains safely on bus.', tool: 'Notification MCP, Incident Database' }
+    ],
+    [
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
+      { agent: 'Compliance Agent', text: '❌ Pre-trip checklist failure: Bus AU-BUS-104 reported low brake pressure.', tool: 'Fleet MCP, Pre-trip Forms' },
+      { agent: 'Incident Agent', text: '🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106.', tool: 'Route Optimization MCP' }
+    ],
+    [
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
+      { agent: 'Compliance Agent', text: '✅ Querying weekly violation logs. 18 driver training renewals missed during Ramadan shift adjustments.', tool: 'Driver MCP, Policy RAG' },
+      { agent: 'Incident Agent', text: '🚨 Incident correlation: High incident volumes matched with newer routes launched.', tool: 'Incident MCP' },
+      { agent: 'Executive Agent', text: '📊 Synthesizing executive report.', tool: 'Analytics MCP' }
+    ]
+  ];
+  return history[num] || [];
 }
 
 function clearAgentLog() {
@@ -377,123 +537,14 @@ function resetDiagramHighlights() {
 function highlightDiagramNode(agentName) {
   resetDiagramHighlights();
   document.getElementById('arch-supervisor').classList.add('active');
-  
-  if (agentName.includes('Compliance')) {
-    document.getElementById('arch-compliance').classList.add('active');
-  } else if (agentName.includes('Safety')) {
-    document.getElementById('arch-safety').classList.add('active');
-  } else if (agentName.includes('Incident')) {
-    document.getElementById('arch-incident').classList.add('active');
-  } else if (agentName.includes('Route')) {
-    document.getElementById('arch-route').classList.add('active');
-  } else if (agentName.includes('Executive')) {
-    document.getElementById('arch-exec').classList.add('active');
-  }
+  if (agentName.includes('Compliance')) document.getElementById('arch-compliance').classList.add('active');
+  else if (agentName.includes('Safety')) document.getElementById('arch-safety').classList.add('active');
+  else if (agentName.includes('Incident')) document.getElementById('arch-incident').classList.add('active');
+  else if (agentName.includes('Route')) document.getElementById('arch-route').classList.add('active');
+  else if (agentName.includes('Executive')) document.getElementById('arch-exec').classList.add('active');
 }
 
-// --- INCIDENT CENTER ACTIONS ---
-function renderIncidents() {
-  const list = document.getElementById('incident-list');
-  if (!list) return;
-  list.innerHTML = '';
-  
-  INCIDENTS.forEach(inc => {
-    const item = document.createElement('div');
-    item.className = 'incident-item';
-    item.onclick = () => selectIncident(inc);
-    
-    item.innerHTML = `
-      <div class="ii-header">
-        <span class="ii-id">${inc.id}</span>
-        <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
-      </div>
-      <div class="ii-title">${inc.type}</div>
-      <div class="ii-meta">Bus: ${inc.vehicle} · Driver: ${inc.driver} · ${inc.time}</div>
-    `;
-    list.appendChild(item);
-  });
-  
-  document.getElementById('incident-count-badge').innerText = `${INCIDENTS.length} Open`;
-}
-
-function selectIncident(inc) {
-  document.querySelectorAll('.incident-item').forEach(el => el.classList.remove('selected'));
-  
-  // Highlight clicked
-  const items = document.querySelectorAll('.incident-item');
-  items.forEach(el => {
-    if (el.innerHTML.includes(inc.id)) el.classList.add('selected');
-  });
-  
-  const detail = document.getElementById('incident-detail');
-  detail.innerHTML = `
-    <div class="card-header">
-      <span class="card-title">🚨 Incident Details & Agent Flow</span>
-      <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
-    </div>
-    <div class="incident-detail-content">
-      <p style="font-size:1rem;font-weight:700;margin-bottom:.5rem">${inc.type}</p>
-      <p style="color:var(--text2);margin-bottom:1rem">${inc.desc}</p>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
-        <div><strong>Driver:</strong> ${inc.driver}</div>
-        <div><strong>Vehicle:</strong> ${inc.vehicle}</div>
-      </div>
-      
-      <strong style="font-size:.8rem;display:block;margin-top:1rem">🤖 Multi-Agent Escalation Flow:</strong>
-      <div class="agent-flow-viz">
-        <div class="flow-step fs-done">
-          <span class="fs-icon">🛡️</span>
-          <div>
-            <strong>Safety Agent (Evaluated)</strong>
-            <div style="font-size:.7rem">Risk evaluation score: High. Mobile phone usage verified.</div>
-          </div>
-        </div>
-        <div class="flow-step fs-active">
-          <span class="fs-icon">✅</span>
-          <div>
-            <strong>Compliance Agent (Reviewing)</strong>
-            <div style="font-size:.7rem">Reviewing history logs in fleet db. 3 past entries.</div>
-          </div>
-        </div>
-        <div class="flow-step fs-pending">
-          <span class="fs-icon">🚨</span>
-          <div>
-            <strong>Incident Agent (Pending)</strong>
-            <div style="font-size:.7rem">Awaiting policy assessment confirmation.</div>
-          </div>
-        </div>
-      </div>
-      
-      <strong style="font-size:.8rem;display:block;margin-top:1rem">🛠️ Remediation Tasks:</strong>
-      <div class="action-items">
-        <div class="action-item">SMS sent to ADEK Central Dispatch</div>
-        <div class="action-item">Driver compliance status marked: SUSPENDED</div>
-        <div class="action-item">Automated retraining task queued in LMS portal</div>
-      </div>
-    </div>
-  `;
-}
-
-function triggerNewIncident() {
-  const newInc = {
-    id: 'INC-2026-' + Math.floor(883 + Math.random() * 100),
-    severity: 'high',
-    type: 'Speeding Alert',
-    driver: 'Zayed Al Mansoori',
-    vehicle: 'AU-BUS-101',
-    time: 'Just now',
-    desc: 'Speed violation: Bus reached 92 km/h in 80 km/h school zone on Sultan Bin Zayed the First St.'
-  };
-  
-  INCIDENTS.unshift(newInc);
-  renderIncidents();
-  selectIncident(newInc);
-  
-  addAlertItem({ type: 'crit', text: `INCIDENT TRIPPED: Speeding violation on vehicle ${newInc.vehicle}` });
-}
-
-// --- EXEC SCENARIOS ---
+// --- EXECUTIVE INSIGHTS QUESTIONS ---
 const EXEC_RESPONSES = [
   "<strong>Query: Why did compliance decrease in March?</strong><br><br>Compliance dropped by 3.2% in March. Analysis points to a high renewal backlog of passenger supervisor permits at the start of the academic term. Additionally, 12 vehicles failed HVAC pre-trip tests as outdoor temperatures began rising. <em>Recommendation: Schedule HVAC preventative maintenance cycles in February.</em>",
   "<strong>Query: What are top 3 risk drivers this week?</strong><br><br>1. <strong>Summer Heat Indexes:</strong> High passenger cabin temperature warnings.<br>2. <strong>Route Deviations:</strong> Secondary road works in Khalifa City.<br>3. <strong>Late Permits:</strong> Expiring safety checks for 8 drivers.",
@@ -504,96 +555,46 @@ const EXEC_RESPONSES = [
 function runExecScenario(idx) {
   const flowDiv = document.getElementById('exec-agent-flow');
   flowDiv.innerHTML = '<div class="ai-thinking"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Querying supervisor agent...</div>';
-  
   setTimeout(() => {
-    flowDiv.innerHTML = `
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:.82rem;line-height:1.5;color:var(--text2)">
-        ${EXEC_RESPONSES[idx]}
-      </div>
-    `;
+    flowDiv.innerHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:.82rem;line-height:1.5;color:var(--text2)">${EXEC_RESPONSES[idx]}</div>`;
   }, 1000);
 }
 
-// --- INITIALIZE TABLES & INITIAL VALUES ---
-function initTables() {
-  const tbody = document.getElementById('driver-tbody');
-  if (tbody) {
-    tbody.innerHTML = '';
-    DRIVERS.forEach(drv => {
-      let stClass = 'sp-ok';
-      if (drv.status === 'Warning') stClass = 'sp-warn';
-      if (drv.status === 'Non-Compliant') stClass = 'sp-fail';
-      
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><strong>${drv.id}</strong></td>
-        <td>${drv.name}</td>
-        <td>${drv.permit}</td>
-        <td>${drv.medical}</td>
-        <td>${drv.training}</td>
-        <td><span class="status-pill ${stClass}">${drv.status}</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  const vlist = document.getElementById('vehicle-list');
-  if (vlist) {
-    vlist.innerHTML = '';
-    VEHICLES.forEach(veh => {
-      let stClass = 'vs-ok';
-      if (veh.status === 'warn') stClass = 'vs-warn';
-      if (veh.status === 'bad') stClass = 'vs-bad';
-      
-      const item = document.createElement('div');
-      item.className = 'veh-item';
-      item.innerHTML = `
-        <span class="veh-plate">${veh.plate}</span>
-        <span>Age: ${veh.age}y</span>
-        <span class="veh-status ${stClass}">${veh.status.toUpperCase()}</span>
-      `;
-      vlist.appendChild(item);
-    });
-  }
-
+// Initialize tables
+function initRouteGrid() {
   const rgrid = document.getElementById('route-grid');
-  if (rgrid) {
-    rgrid.innerHTML = '';
-    for (let i = 1; i <= 9; i++) {
-      let rClass = 'active';
-      let rStatus = 'ON ROUTE';
-      if (i === 3) { rClass = 'delayed'; rStatus = '+12m DELAY'; }
-      if (i === 6) { rClass = 'alert'; rStatus = 'ALERT'; }
-      
-      const item = document.createElement('div');
-      item.className = `route-item ${rClass}`;
-      item.innerHTML = `
-        <div class="ri-id">AU-Route-${i * 10}</div>
-        <div class="ri-status">${rStatus}</div>
-      `;
-      rgrid.appendChild(item);
-    }
+  if (!rgrid) return;
+  rgrid.innerHTML = '';
+  for (let i = 1; i <= 9; i++) {
+    let rClass = 'active';
+    let rStatus = 'ON ROUTE';
+    if (i === 3) { rClass = 'delayed'; rStatus = '+12m DELAY'; }
+    if (i === 6) { rClass = 'alert'; rStatus = 'ALERT'; }
+    const item = document.createElement('div');
+    item.className = `route-item ${rClass}`;
+    item.innerHTML = `<div class="ri-id">AU-Route-${i * 10}</div><div class="ri-status">${rStatus}</div>`;
+    rgrid.appendChild(item);
   }
 }
 
-// --- INIT APP ---
+// Window load init
 window.onload = function() {
-  initTables();
+  initRouteGrid();
+  loadFleetData();
+  loadIncidentsData();
   initCharts();
-  renderIncidents();
   
-  // Prep the executive summary text
+  // Executive summary simulation
   setTimeout(() => {
     const summaryDiv = document.getElementById('ai-exec-summary');
     if (summaryDiv) {
       summaryDiv.innerHTML = `
         <p style="margin-bottom:.5rem"><strong>Abu Dhabi Mobility Compliance Insights:</strong></p>
         <p>This week fleet compliance improved to <strong>94.2%</strong>. Driver permit audit logs verify that 98% of active drivers have completed the latest ADEK safety induction training.</p>
-        <p style="margin-top:.5rem"><em>Key Alert:</em> Heavy road closures around Yas Island may impact morning drop-off times for routes AU-31 through AU-35. Route Optimization Agent has sent proactive rescheduling suggestions to operators.</p>
+        <p style="margin-top:.5rem"><em>Key Alert:</em> Heavy road closures around Yas Island may impact morning drop-off times for routes AU-31 through AU-35.</p>
       `;
     }
   }, 1500);
 
-  // Initial alerts in feed
   LIVE_ALERTS.forEach(al => addAlertItem(al));
 };
