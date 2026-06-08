@@ -2,8 +2,7 @@ from .state import AgentState
 from .llm import call_gemini
 
 
-def supervisor_agent(state: AgentState) -> AgentState:
-    history = state["conversation_history"]
+def supervisor_agent(state: AgentState) -> dict:
     query = state["user_query"]
     scenario = state["scenario"]
 
@@ -17,21 +16,41 @@ def supervisor_agent(state: AgentState) -> AgentState:
     elif scenario == 3:
         next_step = "compliance"
     else:
-        # User query classification routing
-        if any(w in query.lower() for w in ["handover", "guardian", "policy"]):
-            next_step = "compliance"
-        elif any(w in query.lower() for w in ["phone", "mobile", "distraction", "speed"]):
-            next_step = "safety"
+        # LLM Autonomous routing classification
+        routing_prompt = (
+            f"Classify the following query: '{query}'.\n"
+            f"Return exactly one word matching the next agent name:\n"
+            f"- 'safety': for distractions, cameras, speed violations, missing guardian, or physical route safety issues.\n"
+            f"- 'compliance': for PASS permits, driver licensing status, or regulatory RAG lookups.\n"
+            f"- 'executive': for summaries, analytics, overall metrics, or performance ratios.\n"
+            f"Next step (exactly one word: safety, compliance, executive):"
+        )
+        llm_decision = call_gemini(
+            prompt=routing_prompt,
+            system_instruction="You are the Routing Supervisor for the ADEK School Transportation platform.",
+        )
+        cleaned = llm_decision.strip().lower() if llm_decision else ""
+        if cleaned in ["safety", "compliance", "executive"]:
+            next_step = cleaned
         else:
-            next_step = "executive"
+            # Fallback logic
+            if any(w in query.lower() for w in ["handover", "guardian", "policy"]):
+                next_step = "compliance"
+            elif any(w in query.lower() for w in ["phone", "mobile", "distraction", "speed"]):
+                next_step = "safety"
+            else:
+                next_step = "executive"
 
-    # Dynamic LLM execution
+    # Dynamic LLM instruction coordination text
     llm_msg = call_gemini(
         prompt=f"A user requested scenario {scenario} with query '{query}'. Act as the Supervisor and output a 1-sentence message coordinating this pipeline. Next agent is '{next_step}'. Keep it professional.",
         system_instruction="You are the Supervisor Agent for the ADEK School Transportation AI Compliance Platform.",
     )
 
     msg = llm_msg or "🧠 Supervisor coordinated execution pipeline."
-    history.append({"agent": "Supervisor Agent", "text": msg, "tool": "LangGraph State Router"})
 
-    return {**state, "conversation_history": history, "next_step": next_step}
+    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
+    return {
+        "conversation_history": [{"agent": "Supervisor Agent", "text": msg, "tool": "LangGraph State Router"}],
+        "next_step": next_step
+    }

@@ -4,8 +4,7 @@ from ..database.connection import get_db_connection
 from .llm import call_gemini
 
 
-def safety_agent(state: AgentState) -> AgentState:
-    history = state["conversation_history"]
+def safety_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
 
     # 1. Fetch real contextual data from DB
@@ -45,5 +44,8 @@ def safety_agent(state: AgentState) -> AgentState:
     )
 
     msg = llm_msg or fallback_msg
-    history.append({"agent": "Safety Agent", "text": msg, "tool": tool})
-    return {**state, "conversation_history": history, "next_step": next_step}
+    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
+    return {
+        "conversation_history": [{"agent": "Safety Agent", "text": msg, "tool": tool}],
+        "next_step": next_step
+    }

@@ -29,8 +29,14 @@ class SimpleCharEmbedding(EmbeddingFunction):
         return embeddings
 
 
+_chroma_client = None
+
+
 def _get_client() -> chromadb.PersistentClient:
-    return chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
+    return _chroma_client
 
 
 def _get_embedding_fn() -> SimpleCharEmbedding:

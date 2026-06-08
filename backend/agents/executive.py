@@ -3,8 +3,7 @@ from ..database.connection import get_db_connection
 from .llm import call_gemini
 
 
-def executive_agent(state: AgentState) -> AgentState:
-    history = state["conversation_history"]
+def executive_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
 
     # Retrieve real metrics from SQLite
@@ -41,5 +40,8 @@ def executive_agent(state: AgentState) -> AgentState:
     )
 
     msg = llm_msg or fallback_msg
-    history.append({"agent": "Executive Agent", "text": msg, "tool": tool})
-    return {**state, "conversation_history": history, "next_step": "end"}
+    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
+    return {
+        "conversation_history": [{"agent": "Executive Agent", "text": msg, "tool": tool}],
+        "next_step": "end"
+    }

@@ -3,8 +3,7 @@ from ..mcp.base import mcp_registry
 from .llm import call_gemini
 
 
-def compliance_agent(state: AgentState) -> AgentState:
-    history = state["conversation_history"]
+def compliance_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
 
     # 1. Fetch live contexts
@@ -64,5 +63,8 @@ def compliance_agent(state: AgentState) -> AgentState:
     )
 
     msg = llm_msg or fallback_msg
-    history.append({"agent": "Compliance Agent", "text": msg, "tool": tool})
-    return {**state, "conversation_history": history, "next_step": next_step}
+    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
+    return {
+        "conversation_history": [{"agent": "Compliance Agent", "text": msg, "tool": tool}],
+        "next_step": next_step
+    }

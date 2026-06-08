@@ -4,8 +4,7 @@ from ..database.connection import get_db_connection
 from .llm import call_gemini
 
 
-def incident_agent(state: AgentState) -> AgentState:
-    history = state["conversation_history"]
+def incident_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
 
     # Retrieve common database variables
@@ -89,5 +88,8 @@ def incident_agent(state: AgentState) -> AgentState:
     )
 
     msg = llm_msg or fallback_msg
-    history.append({"agent": "Incident Agent", "text": msg, "tool": tool})
-    return {**state, "conversation_history": history, "next_step": next_step}
+    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
+    return {
+        "conversation_history": [{"agent": "Incident Agent", "text": msg, "tool": tool}],
+        "next_step": next_step
+    }
