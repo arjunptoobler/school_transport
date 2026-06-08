@@ -1,7 +1,12 @@
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
 .DS_Store
-backend/school_transport.db
-backend/chroma_db/
+
+# Runtime data — regenerated on startup
+backend/database/school_transport.db
+backend/rag/chroma_db/
+
+# Environment
+.env
+*.env
