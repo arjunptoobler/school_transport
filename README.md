@@ -1,6 +1,6 @@
 # ADEK School Transportation AI Compliance Platform
 
-Enterprise Agentic AI platform for monitoring, enforcing, and reporting Abu Dhabi school transport compliance using LangGraph multi-agent orchestration, MCP tool servers, and ChromaDB vector RAG.
+Enterprise Agentic AI platform for monitoring, enforcing, and reporting Abu Dhabi school transport compliance using LangGraph multi-agent orchestration, Model Context Protocol (MCP) tool integration, and ChromaDB vector RAG.
 
 ---
 
@@ -17,13 +17,14 @@ school_transport/
 │   ├── config.py        # Centralized settings via pydantic-settings
 │   ├── agents/          # LangGraph multi-agent graph
 │   │   ├── graph.py     # Lazy-compiled StateGraph singleton
-│   │   ├── state.py     # AgentState TypedDict
-│   │   ├── supervisor.py
+│   │   ├── state.py     # AgentState with standard operator.add list reducer
+│   │   ├── llm.py       # Gemini API client wrapper with fallback
+│   │   ├── supervisor.py# Routing supervisor (dynamic LLM routing + fallback)
 │   │   ├── compliance.py
 │   │   ├── safety.py
 │   │   ├── incident.py
 │   │   └── executive.py
-│   ├── mcp/             # Model Context Protocol tool registry
+│   ├── mcp/             # Model Context Protocol tool registry (leak-proof)
 │   │   ├── base.py      # MCPToolRegistry decorator pattern
 │   │   ├── policy.py    # RAG policy lookup tools
 │   │   ├── fleet.py     # Vehicle status + grounding tools
@@ -31,9 +32,13 @@ school_transport/
 │   │   ├── notification.py  # SMS / Push dispatch tools
 │   │   └── incident.py  # Incident create + query tools
 │   ├── rag/
-│   │   └── vector_db.py # ChromaDB init + query (persistent at backend/rag/chroma_db/)
+│   │   ├── vector_db.py # Thread-safe singleton ChromaDB client
+│   │   ├── ingestion.py # Walks rag/documents/ directory tree
+│   │   └── documents/   # RAG source policy PDFs/text (segregated from research/)
+│   │       ├── adek/
+│   │       └── mobility/
 │   ├── database/
-│   │   ├── connection.py  # SQLite thread-safe connection
+│   │   ├── connection.py  # Thread-safe SQLite connection with WAL mode
 │   │   ├── models.py      # Pydantic schemas
 │   │   └── seed.py        # Idempotent seed (500 drivers, 250 vehicles, 5000 students)
 │   └── routes/
@@ -41,7 +46,7 @@ school_transport/
 │       ├── incidents.py
 │       ├── policy.py
 │       └── agents.py
-├── research/            # Source PDFs and reference documents
+├── research/            # Research summaries and architectural reviews
 ├── requirements.txt
 └── README.md
 ```
@@ -58,11 +63,14 @@ pip install -r requirements.txt
 
 ### 2. Start the API backend
 
+To run in real AI-driven mode, provide your Gemini API key:
 ```bash
+export GEMINI_API_KEY="your-gemini-api-key"
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
+*Note: If `GEMINI_API_KEY` is not supplied, the platform automatically falls back to local database-driven dynamic context outputs (offline demo mode) without crashing.*
 
-The server auto-seeds the SQLite database and initialises the ChromaDB vector index on first run. Subsequent restarts skip seeding (idempotent).
+The server auto-seeds the SQLite database and initialises the ChromaDB vector index on startup. Subsequent restarts skip seeding (idempotent).
 
 ### 3. Start the frontend
 
@@ -89,48 +97,24 @@ FastAPI auto-generates interactive docs at:
 
 ### 6. Adding PDF Knowledge Base
 
-Drop any ADEK / Abu Dhabi Mobility PDF into `research/`. Then update `backend/rag/vector_db.py` → `init_vector_db()` to parse and chunk the document into `collection.add()` calls. The vector DB will be auto-initialised on next server start.
+To add documents to the RAG vector store, drop text or PDFs into the specific subdirectories under `backend/rag/documents/` (e.g., `adek/` or `mobility/`). The vector DB walks this folder tree and auto-ingests new documents on the next server startup. Do not drop RAG source files into `research/` (which is reserved for general research reports and reviews).
 
 ---
 
-## Scaling to Production
+## Production & Architectural Safeguards
 
-### Replace Mock Embeddings
-The current `SimpleCharEmbedding` is a character-frequency baseline sufficient for demo. Replace with:
+### Standard LangGraph Reducer
+`AgentState` is defined using Python's standard `Annotated` reducer type:
 ```python
-# Option A: OpenAI
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-embedding_function = OpenAIEmbeddingFunction(api_key=settings.OPENAI_API_KEY)
-
-# Option B: Local (sentence-transformers)
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
-embedding_function = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+conversation_history: Annotated[List[Dict[str, str]], operator.add]
 ```
+Agent nodes return only their incremental updates rather than manually mutating and replacing the state dictionary, eliminating race conditions.
 
-### Replace SQLite with PostgreSQL
-Update `backend/database/connection.py` to use `psycopg2` or `SQLAlchemy` with a `DATABASE_URL` from `config.py`. All query logic in `routes/` stays the same.
+### Thread-Safe SQLite WAL Mode
+The database connection pool is configured with `check_same_thread=False` and runs under **Write-Ahead Logging (WAL)** mode. This enables concurrent readers to access analytics data alongside active agent database write transactions.
 
-### Add Real LLM to Agents
-Each agent node in `backend/agents/` currently uses deterministic logic for demo reliability. To add real LLM reasoning, pass `mcp_registry` tools into a LangChain `AgentExecutor` or LangGraph `ToolNode`:
-```python
-# In any agent node:
-from langchain_groq import ChatGroq
-llm = ChatGroq(model="llama3-70b-8192", api_key=settings.GROQ_API_KEY)
-```
+### Persistent RAG Singleton client
+The ChromaDB persistent client is cached globally inside a thread-safe singleton, avoiding I/O file handle leaks and minimizing latency on vector searches.
 
-### Horizontal Scaling
-- Run multiple uvicorn workers: `uvicorn backend.main:app --workers 4`
-- The agent graph singleton is per-process safe (compiled once on startup)
-- Move ChromaDB to a dedicated Chroma server (`chromadb.HttpClient`) for multi-process consistency
-- Use Redis for notification queuing instead of the sync `send_sms` mock
-
-### MCP Servers (Production)
-The `backend/mcp/` registry simulates MCP tool calls in-process. For production, each tool module can be exposed as a standalone MCP server over stdio or SSE transport using the official `mcp` Python SDK, and called remotely by agents.
-
-### Environment Variables
-```bash
-GROQ_API_KEY=your_key
-OPENAI_API_KEY=your_key
-SQLITE_DB_PATH=/data/school_transport.db   # override default
-CHROMA_DB_PATH=/data/chroma_db             # override default
-```
+### Graceful Connection Auditing
+All endpoints, agent nodes, and MCP tools wrap database connections inside `try...finally` blocks to guarantee active SQLite connections are closed immediately upon failure, preventing memory leaks.
