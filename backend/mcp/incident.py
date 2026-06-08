@@ -1,5 +1,5 @@
 import datetime
-import random
+import uuid
 from .base import mcp_registry
 from ..database.connection import get_db_connection
 
@@ -8,7 +8,7 @@ def create_incident(severity: str, type: str, driver_id: str, vehicle_id: str, d
     """File a compliance or safety incident event inside the master SQLite database."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    inc_id = f"INC-2026-{random.randint(1000, 9999)}"
+    inc_id = f"INC-{uuid.uuid4().hex[:8].upper()}"
     timestamp = datetime.datetime.now().isoformat()
     cursor.execute("INSERT INTO incidents VALUES (?,?,?,?,?,?,?)", 
                    (inc_id, severity, type, driver_id, vehicle_id, timestamp, description))

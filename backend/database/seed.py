@@ -111,7 +111,7 @@ def seed_database():
     ]
     
     for i in range(1, 1001):
-        inc_id = f"INC-2026-{880 - i}"
+        inc_id = f"INC-2026-{i:04d}"
         inc_type, severity, desc = random.choice(incident_types)
         drv_id = f"DRV-{1000 + random.randint(1, 500)}"
         veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"

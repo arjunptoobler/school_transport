@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import datetime
-import random
+import uuid
 from ..database.connection import get_db_connection
 
 router = APIRouter(prefix="/incidents", tags=["Incident Management"])
@@ -28,7 +28,7 @@ def get_incidents():
 @router.post("/simulate")
 def simulate_incident(req: IncidentCreate):
     try:
-        inc_id = f"INC-2026-{random.randint(1000, 9999)}"
+        inc_id = f"INC-{uuid.uuid4().hex[:8].upper()}"
         timestamp = datetime.datetime.now().isoformat()
         
         conn = get_db_connection()

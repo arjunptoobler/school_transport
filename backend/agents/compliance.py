@@ -6,8 +6,8 @@ def compliance_agent(state: AgentState) -> AgentState:
     scenario = state["scenario"]
     
     if scenario == 0:
-        # Call Driver MCP to fetch history
-        mcp_registry.call_tool("mcp_get_driver_record", driver_id="DRV-1045")
+        # Check permit history via Driver MCP
+        mcp_registry.call_tool("mcp_get_driver_record", driver_id="DRV-4412")
         msg = "✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings this quarter. Permit is subject to suspension."
         tool = "Driver Database, PASS MCP"
         next_step = "incident"

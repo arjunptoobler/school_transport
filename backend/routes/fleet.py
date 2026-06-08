@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException
 from ..database.connection import get_db_connection
-from ..database.models import DriverModel, VehicleModel
 
 router = APIRouter(prefix="/fleet", tags=["Fleet Management"])
 
