@@ -1,14 +1,20 @@
 from .state import AgentState
 from ..mcp.base import mcp_registry
 from ..database.connection import get_db_connection
+from .parser import extract_entities
 from .llm import call_gemini
 
 
 def safety_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
 
-    # 1. Fetch real contextual data from DB
-    veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id="AU-BUS-105")
+    # Extract dynamic parameters
+    entities = extract_entities(state)
+    driver_id = entities["driver_id"]
+    vehicle_id = entities["vehicle_id"]
+
+    # Fetch vehicle details dynamically from Fleet MCP
+    veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
     plate = veh.get("license_plate", "Unknown Plate")
 
     conn = get_db_connection()
@@ -24,10 +30,10 @@ def safety_agent(state: AgentState) -> dict:
 
     # Default fallback messages
     if scenario == 0:
-        fallback_msg = f"⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 ({plate}) shows driver looking at phone for >4 seconds. Alert issued to driver console."
+        fallback_msg = f"⚠️ [Distraction Triggered] Cabin camera feed on Bus {vehicle_id} ({plate}) shows driver looking at phone for >4 seconds. Alert issued to driver console."
         tool = "Cabin Camera Edge Sensor, Incident MCP"
         next_step = "compliance"
-        prompt_desc = f"Distraction alert: Cabin camera on Bus AU-BUS-105 ({plate}) detected phone usage. Console alert issued."
+        prompt_desc = f"Distraction alert: Cabin camera on Bus {vehicle_id} ({plate}) detected phone usage. Console alert issued."
     elif scenario == 1:
         fallback_msg = f"⚠️ [Missing Guardian] Supervisor on {route} reports Grade 2 student {s_name} Guardian not present at stop #4."
         tool = "Route Supervisor SOP App"
@@ -37,7 +43,7 @@ def safety_agent(state: AgentState) -> dict:
         fallback_msg = "🛡️ Safety Agent completed query. Evaluating risk profile."
         tool = "Incident MCP Lookup"
         next_step = "incident"
-        prompt_desc = "Standard risk query completed."
+        prompt_desc = f"Standard safety risk query completed for vehicle {vehicle_id} ({plate})."
 
     # 2. Try LLM Generation
     llm_msg = call_gemini(
