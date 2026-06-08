@@ -3,9 +3,11 @@ __pycache__/
 *.pyo
 .DS_Store
 
-# Runtime data — regenerated on startup
+# Runtime data — regenerated on startup (do NOT commit these)
 backend/database/school_transport.db
 backend/rag/chroma_db/
+
+# RAG source documents are versioned in rag/documents/ (NOT gitignored)
 
 # Environment
 .env

@@ -1,86 +1,89 @@
-import os
+"""
+vector_db.py — ChromaDB client, collection initialisation, and query interface.
+
+Source documents come from rag/documents/ via ingestion.load_documents().
+The vector store persists at backend/rag/chroma_db/ (gitignored).
+"""
+
 import chromadb
 from chromadb import EmbeddingFunction
 from ..config import settings
+from .ingestion import load_documents
 
-# Standard embedding function using custom logic conforming to ChromaDB EmbeddingFunction protocol
+
 class SimpleCharEmbedding(EmbeddingFunction):
+    """
+    Lightweight character-frequency embedding for demo / offline use.
+
+    Replace with OpenAIEmbeddingFunction or SentenceTransformerEmbeddingFunction
+    for production-quality semantic search (see README.md — Scaling section).
+    """
     def __call__(self, input):
         embeddings = []
         for text in input:
             vector = [0.0] * 128
-            for i, c in enumerate(text[:256]):
-                dim = ord(c) % 128
-                vector[dim] += 1.0
-            norm = sum(x**2 for x in vector)**0.5 or 1.0
-            vector = [x/norm for x in vector]
-            embeddings.append(vector)
+            for c in text[:512]:
+                vector[ord(c) % 128] += 1.0
+            norm = sum(x ** 2 for x in vector) ** 0.5 or 1.0
+            embeddings.append([x / norm for x in vector])
         return embeddings
 
-def get_chroma_client():
+
+def _get_client() -> chromadb.PersistentClient:
     return chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
 
-def init_vector_db():
-    client = get_chroma_client()
-    embedding_function = SimpleCharEmbedding()
-    
+
+def _get_embedding_fn() -> SimpleCharEmbedding:
+    return SimpleCharEmbedding()
+
+
+def init_vector_db() -> None:
+    """
+    Idempotent — loads documents from rag/documents/ and adds any that are
+    not already present in the collection (matched by document ID).
+    Called automatically by FastAPI lifespan on server start.
+    """
+    client = _get_client()
+    ef = _get_embedding_fn()
+
     collection = client.get_or_create_collection(
         name="adek_regulations",
-        embedding_function=embedding_function
-    )
-    
-    if collection.count() > 0:
-        return
-        
-    documents = [
-        {
-            "id": "adek_1",
-            "text": "ADEK Student Transportation Policy Regulation 14.2: Guardian Handover. Student under Grade 3 / Age 9 must never be left unattended at a drop-off point. If an authorized guardian is not present, the driver or school bus supervisor must retain the student on board, notify school dispatch, and return the student safely to the school campus or local security precinct.",
-            "metadata": {"authority": "ADEK", "document": "Transportation Policy", "section": "14.2 Guardian Handover"}
-        },
-        {
-            "id": "adek_2",
-            "text": "ADEK Student Protection Policy Sec 4: Incident reporting and supervisor duties. Any safety hazard, student behavior stage escalation, or missing supervisor incident must be logged in the electronic system within 30 minutes of occurrence. Parent notifications must be sent immediately via registered contact channels.",
-            "metadata": {"authority": "ADEK", "document": "Student Protection", "section": "4 Incident Reporting"}
-        },
-        {
-            "id": "mob_1",
-            "text": "Abu Dhabi Mobility School Transport Rules Sec 2.1: Driver mobile phone usage and distraction. Operating a school transport vehicle while holding or viewing a mobile phone or electronic device is strictly prohibited. It carries a fine of AED 5,000, 24 black points, and immediate suspension of the school bus transport permit.",
-            "metadata": {"authority": "Abu Dhabi Mobility", "document": "School Transport Rules", "section": "2.1 Driver Distraction"}
-        },
-        {
-            "id": "mob_2",
-            "text": "Abu Dhabi Mobility Vehicle Inspection Checklist: All school transport vehicles must pass a pre-trip and weekly vehicle health check. Crucial items including air conditioning (HVAC) functionality, braking systems pressure thresholds, safety camera operations, and emergency exit release must be fully operational. Failures result in immediate grounding.",
-            "metadata": {"authority": "Abu Dhabi Mobility", "document": "Vehicle Checklist", "section": "Weekly Inspection"}
-        }
-    ]
-    
-    collection.add(
-        documents=[doc["text"] for doc in documents],
-        metadatas=[doc["metadata"] for doc in documents],
-        ids=[doc["id"] for doc in documents]
+        embedding_function=ef,
     )
 
-def query_policy(query_text: str):
-    client = get_chroma_client()
-    embedding_function = SimpleCharEmbedding()
-    collection = client.get_collection(
+    existing_ids = set(collection.get()["ids"])
+    docs = load_documents()
+
+    new_docs = [d for d in docs if d["id"] not in existing_ids]
+    if not new_docs:
+        return
+
+    collection.add(
+        documents=[d["text"] for d in new_docs],
+        metadatas=[d["metadata"] for d in new_docs],
+        ids=[d["id"] for d in new_docs],
+    )
+
+
+def query_policy(query_text: str, n_results: int = 3) -> list:
+    """Semantic search over the ingested policy collection."""
+    client = _get_client()
+    ef = _get_embedding_fn()
+
+    collection = client.get_or_create_collection(
         name="adek_regulations",
-        embedding_function=embedding_function
+        embedding_function=ef,
     )
-    
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=2
-    )
-    
+
+    results = collection.query(query_texts=[query_text], n_results=n_results)
+
     retrieved = []
     if results and results["documents"]:
-        for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+        for text, meta in zip(results["documents"][0], results["metadatas"][0]):
             retrieved.append({
-                "text": doc,
+                "text": text,
                 "authority": meta.get("authority", "Unknown"),
-                "document": meta.get("document", "Unknown"),
-                "section": meta.get("section", "Unknown")
+                "filename": meta.get("filename", ""),
+                "chunk_index": meta.get("chunk_index", 0),
             })
     return retrieved

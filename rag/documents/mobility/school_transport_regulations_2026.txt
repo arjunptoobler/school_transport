@@ -1,0 +1,30 @@
+Abu Dhabi Mobility — School Transport Regulations (2026)
+
+Section 2.1 — Driver Mobile Phone and Distraction Policy
+Operating a school transport vehicle while holding or viewing a mobile phone or any
+electronic device is strictly prohibited at all times.
+Penalty: AED 5,000 fine, 24 black points, immediate suspension of school bus transport permit.
+Repeat offence within 12 months results in permanent permit revocation.
+
+Section 3.4 — Speed Limits in School Zones
+Maximum speed within 500m of any registered school during school hours: 40 km/h.
+Speed limit on all school bus routes between 06:30–08:30 and 13:00–16:00: 60 km/h.
+Penalty: AED 3,000 fine, 12 black points, compulsory safe-driving course.
+
+Section 5 — Vehicle Inspection Requirements
+All school transport vehicles must pass:
+- Daily pre-trip checklist (driver + supervisor sign-off required)
+- Weekly full inspection logged in the digital fleet management system
+- Annual roadworthiness certificate from Abu Dhabi Ports and Transport Authority
+
+Inspection failure items that result in immediate grounding:
+- Brake pressure below threshold
+- Non-functional emergency exit release
+- Inoperative safety cameras (cabin or external)
+- HVAC failure during months April–October
+- GPS tracker offline for more than 15 minutes
+
+Section 6 — Route Deviation and GPS Compliance
+All school buses must follow pre-approved routes loaded in the fleet management system.
+Any deviation exceeding 200m triggers an automatic alert to the operator control centre.
+Planned route changes require 48-hour advance approval from Abu Dhabi Mobility.
