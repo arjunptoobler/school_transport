@@ -40,11 +40,14 @@ def compliance_agent(state: AgentState) -> dict:
         prompt_desc = f"Vehicle AU-BUS-104 failed brakes inspection. Registration: {plate}. Grounded."
     elif scenario == 3:
         from ..database.connection import get_db_connection
+
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM drivers WHERE training_status != 'Complete'")
-        pending_training = cursor.fetchone()[0]
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM drivers WHERE training_status != 'Complete'")
+            pending_training = cursor.fetchone()[0]
+        finally:
+            conn.close()
 
         fallback_msg = f"✅ Querying violation and training logs. {pending_training} driver training renewals are currently pending or overdue."
         tool = "Driver MCP, Policy RAG"
@@ -63,8 +66,7 @@ def compliance_agent(state: AgentState) -> dict:
     )
 
     msg = llm_msg or fallback_msg
-    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
     return {
         "conversation_history": [{"agent": "Compliance Agent", "text": msg, "tool": tool}],
-        "next_step": next_step
+        "next_step": next_step,
     }

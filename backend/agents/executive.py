@@ -8,14 +8,16 @@ def executive_agent(state: AgentState) -> dict:
 
     # Retrieve real metrics from SQLite
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM incidents")
-    total_incidents = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM drivers")
-    total_drivers = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM drivers WHERE training_status != 'Complete'")
-    pending_training = cursor.fetchone()[0]
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM incidents")
+        total_incidents = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM drivers")
+        total_drivers = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM drivers WHERE training_status != 'Complete'")
+        pending_training = cursor.fetchone()[0]
+    finally:
+        conn.close()
 
     simulated_score = max(70.0, round(100.0 - (total_incidents * 0.05), 1))
     pending_ratio = round((pending_training / total_drivers) * 100, 1)
@@ -40,8 +42,7 @@ def executive_agent(state: AgentState) -> dict:
     )
 
     msg = llm_msg or fallback_msg
-    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
     return {
         "conversation_history": [{"agent": "Executive Agent", "text": msg, "tool": tool}],
-        "next_step": "end"
+        "next_step": "end",
     }

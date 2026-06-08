@@ -9,10 +9,12 @@ def incident_agent(state: AgentState) -> dict:
 
     # Retrieve common database variables
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, guardian FROM students LIMIT 1")
-    student = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, guardian FROM students LIMIT 1")
+        student = cursor.fetchone()
+    finally:
+        conn.close()
 
     s_name = student["name"] if student else "Student"
     guardian = student["guardian"] if student else "Guardian"
@@ -66,10 +68,12 @@ def incident_agent(state: AgentState) -> dict:
         prompt_desc = f"Logged pre-trip checklist failure {inc_id} for AU-BUS-104. Recalculated dynamic route, standby bus AU-BUS-106 dispatched."
     elif scenario == 3:
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high'")
-        high_count = cursor.fetchone()[0]
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high'")
+            high_count = cursor.fetchone()[0]
+        finally:
+            conn.close()
 
         fallback_msg = f"🚨 Incident correlation: Found {high_count} high-severity incidents across fleet. High risk trends flagged in Khalifa City route corridors."
         tool = "Incident MCP"
@@ -88,8 +92,7 @@ def incident_agent(state: AgentState) -> dict:
     )
 
     msg = llm_msg or fallback_msg
-    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
     return {
         "conversation_history": [{"agent": "Incident Agent", "text": msg, "tool": tool}],
-        "next_step": next_step
+        "next_step": next_step,
     }

@@ -12,10 +12,12 @@ def safety_agent(state: AgentState) -> dict:
     plate = veh.get("license_plate", "Unknown Plate")
 
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, route, guardian FROM students LIMIT 1")
-    student = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, route, guardian FROM students LIMIT 1")
+        student = cursor.fetchone()
+    finally:
+        conn.close()
 
     s_name = student["name"] if student else "Student"
     route = student["route"] if student else "AU-Route-109"
@@ -44,8 +46,7 @@ def safety_agent(state: AgentState) -> dict:
     )
 
     msg = llm_msg or fallback_msg
-    # Utilizing LangGraph operator.add reducer by returning only the appended history list item
     return {
         "conversation_history": [{"agent": "Safety Agent", "text": msg, "tool": tool}],
-        "next_step": next_step
+        "next_step": next_step,
     }
