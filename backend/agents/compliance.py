@@ -1,40 +1,45 @@
 from .state import AgentState
 from ..mcp.base import mcp_registry
+from .llm import call_gemini
 
 
 def compliance_agent(state: AgentState) -> AgentState:
     history = state["conversation_history"]
     scenario = state["scenario"]
 
+    # 1. Fetch live contexts
+    drv = mcp_registry.call_tool("mcp_get_driver_record", driver_id="DRV-1045")
+    name = drv.get("name", "Unknown Driver")
+    permit = drv.get("permit_status", "Unknown")
+    training = drv.get("training_status", "Unknown")
+
+    res = mcp_registry.call_tool("mcp_lookup_policy", topic="guardian handover rules")
+    if res:
+        first_match = f"Rule match: {res[0]['text'][:200]}..."
+    else:
+        first_match = "No matching policy found."
+
+    veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id="AU-BUS-104")
+    mcp_registry.call_tool("mcp_update_inspection_status", vehicle_id="AU-BUS-104", status="failed")
+    plate = veh.get("license_plate", "Unknown")
+
+    # Set flow options
     if scenario == 0:
-        # Check permit history via PASS MCP for driver DRV-1045 (seeded driver)
-        drv = mcp_registry.call_tool("mcp_get_driver_record", driver_id="DRV-1045")
-        name = drv.get("name", "Unknown Driver")
-        permit = drv.get("permit_status", "Unknown")
-        training = drv.get("training_status", "Unknown")
-        msg = f"✅ Checked permit registry via PASS MCP. Driver {name} ({drv.get('driver_id')}) has permit status: {permit}. Training status: {training}."
+        fallback_msg = f"✅ Checked permit registry via PASS MCP. Driver {name} ({drv.get('driver_id')}) has permit status: {permit}. Training status: {training}."
         tool = "Driver Database, PASS MCP"
         next_step = "incident"
+        prompt_desc = f"Checked PASS permit registry for driver {name} ({drv.get('driver_id')}). Permit is {permit}. Training: {training}."
     elif scenario == 1:
-        # Call Policy RAG MCP dynamically using vector query
-        res = mcp_registry.call_tool("mcp_lookup_policy", topic="guardian handover rules")
-        if res:
-            first_match = f"Rule match: {res[0]['text'][:140]}..."
-        else:
-            first_match = "No matching policy found."
-        msg = f"📚 RAG Query: 'guardian handover rules'. Result: {first_match}"
+        fallback_msg = f"📚 RAG Query: 'guardian handover rules'. Result: {first_match}"
         tool = "Shared Policy RAG (ChromaDB)"
         next_step = "incident"
+        prompt_desc = f"RAG search query returned compliance policies: {first_match}"
     elif scenario == 2:
-        # Ground vehicle using Fleet MCP
-        veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id="AU-BUS-104")
-        mcp_registry.call_tool("mcp_update_inspection_status", vehicle_id="AU-BUS-104", status="failed")
-        plate = veh.get("license_plate", "Unknown")
-        msg = f"❌ Pre-trip checklist failure: Bus AU-BUS-104 ({plate}) reported low brake pressure. Auto-grounding vehicle in Fleet MCP registry. Operating permit marked: Grounded."
+        fallback_msg = f"❌ Pre-trip checklist failure: Bus AU-BUS-104 ({plate}) reported low brake pressure. Auto-grounding vehicle in Fleet MCP registry. Operating permit marked: Grounded."
         tool = "Fleet MCP, Pre-trip Forms"
         next_step = "incident"
+        prompt_desc = f"Vehicle AU-BUS-104 failed brakes inspection. Registration: {plate}. Grounded."
     elif scenario == 3:
-        # Fetch actual statistics from database
         from ..database.connection import get_db_connection
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -42,13 +47,22 @@ def compliance_agent(state: AgentState) -> AgentState:
         pending_training = cursor.fetchone()[0]
         conn.close()
 
-        msg = f"✅ Querying violation and training logs. {pending_training} driver training renewals are currently pending or overdue."
+        fallback_msg = f"✅ Querying violation and training logs. {pending_training} driver training renewals are currently pending or overdue."
         tool = "Driver MCP, Policy RAG"
         next_step = "incident"
+        prompt_desc = f"Aggregated violation logs. Detected {pending_training} drivers pending training renewal certifications."
     else:
-        msg = "✅ Compliance check completed. Records are valid."
+        fallback_msg = "✅ Compliance check completed. Records are valid."
         tool = "PASS MCP Lookup"
         next_step = "executive"
+        prompt_desc = "All verification checks clean."
 
+    # 2. Call LLM
+    llm_msg = call_gemini(
+        prompt=f"Formulate a regulatory compliance assessment. Context: {prompt_desc}. Make it formal and concise (1-2 sentences). Do not include greetings.",
+        system_instruction="You are the Compliance Agent for the ADEK School Transportation Compliance Platform.",
+    )
+
+    msg = llm_msg or fallback_msg
     history.append({"agent": "Compliance Agent", "text": msg, "tool": tool})
     return {**state, "conversation_history": history, "next_step": next_step}
