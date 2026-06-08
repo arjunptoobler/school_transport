@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADEK · School Transport AI Compliance Platform</title>
+  <meta name="description" content="Enterprise Agentic AI School Transportation Compliance Platform for Abu Dhabi Mobility & ADEK Regulatory Intelligence" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- TOP NAV -->
+  <nav class="topnav" id="topnav">
+    <div class="topnav-brand">
+      <div class="brand-icon">🏫</div>
+      <div>
+        <div class="brand-name">SchoolGuard AI</div>
+        <div class="brand-sub">Abu Dhabi · ADEK Compliance Platform</div>
+      </div>
+    </div>
+    <div class="topnav-tabs">
+      <button class="nav-tab active" id="tab-command" onclick="switchTab('command')">
+        <span class="tab-icon">📡</span> Command Center
+      </button>
+      <button class="nav-tab" id="tab-fleet" onclick="switchTab('fleet')">
+        <span class="tab-icon">🚌</span> Fleet View
+      </button>
+      <button class="nav-tab" id="tab-compliance" onclick="switchTab('compliance')">
+        <span class="tab-icon">✅</span> Compliance
+      </button>
+      <button class="nav-tab" id="tab-incidents" onclick="switchTab('incidents')">
+        <span class="tab-icon">⚠️</span> Incidents
+      </button>
+      <button class="nav-tab" id="tab-executive" onclick="switchTab('executive')">
+        <span class="tab-icon">📊</span> Executive Insights
+      </button>
+      <button class="nav-tab" id="tab-agents" onclick="switchTab('agents')">
+        <span class="tab-icon">🤖</span> AI Agents
+      </button>
+    </div>
+    <div class="topnav-status">
+      <div class="live-indicator"><span class="live-dot"></span> LIVE</div>
+      <div class="time-display" id="live-time">--:--:--</div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- ===== COMMAND CENTER ===== -->
+    <section class="tab-section active" id="section-command">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Command Center</h1>
+          <p class="section-sub">Real-time operational intelligence · Abu Dhabi School Transport Network</p>
+        </div>
+        <div class="header-badges">
+          <span class="badge badge-green">System Nominal</span>
+          <span class="badge badge-blue">LangGraph Active</span>
+        </div>
+      </div>
+
+      <!-- KPI ROW -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-primary" id="kpi-buses">
+          <div class="kpi-icon">🚌</div>
+          <div class="kpi-value" id="kpi-active-buses">247</div>
+          <div class="kpi-label">Active Buses</div>
+          <div class="kpi-sub">of 250 fleet</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:98.8%"></div></div>
+        </div>
+        <div class="kpi-card kpi-success" id="kpi-compliance">
+          <div class="kpi-icon">✅</div>
+          <div class="kpi-value" id="kpi-comp-score">94.2<span class="kpi-unit">%</span></div>
+          <div class="kpi-label">Compliance Score</div>
+          <div class="kpi-sub">↑ +1.3% vs yesterday</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:94.2%"></div></div>
+        </div>
+        <div class="kpi-card kpi-warning" id="kpi-incidents">
+          <div class="kpi-icon">⚠️</div>
+          <div class="kpi-value" id="kpi-open-incidents">7</div>
+          <div class="kpi-label">Open Incidents</div>
+          <div class="kpi-sub">2 High · 5 Medium</div>
+          <div class="kpi-bar"><div class="kpi-fill kpi-fill-warn" style="width:35%"></div></div>
+        </div>
+        <div class="kpi-card kpi-info" id="kpi-students">
+          <div class="kpi-icon">🎒</div>
+          <div class="kpi-value" id="kpi-students-count">4,892</div>
+          <div class="kpi-label">Students in Transit</div>
+          <div class="kpi-sub">98% accounted</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:98%"></div></div>
+        </div>
+        <div class="kpi-card kpi-purple" id="kpi-agents-active">
+          <div class="kpi-icon">🤖</div>
+          <div class="kpi-value" id="kpi-agents-count">5</div>
+          <div class="kpi-label">AI Agents Active</div>
+          <div class="kpi-sub">LangGraph orchestrated</div>
+          <div class="agent-pulses">
+            <span class="apulse apulse-1"></span>
+            <span class="apulse apulse-2"></span>
+            <span class="apulse apulse-3"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECOND ROW: Live Feed + Agent Activity -->
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📡 Live Alert Feed</span>
+            <span class="badge badge-green">Streaming</span>
+          </div>
+          <div class="alert-feed" id="alert-feed"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🤖 Agent Activity Monitor</span>
+            <span class="badge badge-purple">Multi-Agent</span>
+          </div>
+          <div class="agent-monitor" id="agent-monitor"></div>
+        </div>
+      </div>
+
+      <!-- THIRD ROW: Route Status + Compliance Trend -->
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🗺️ Route Status Overview</span>
+          </div>
+          <div class="route-status-grid" id="route-grid"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📈 Compliance Trend (7 Days)</span>
+          </div>
+          <canvas id="compliance-chart" height="180"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FLEET VIEW ===== -->
+    <section class="tab-section" id="section-fleet">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Fleet View</h1>
+          <p class="section-sub">250 vehicles · GPS tracking · Maintenance status</p>
+        </div>
+        <div class="header-badges">
+          <span class="badge badge-green">247 Operational</span>
+          <span class="badge badge-red">3 Grounded</span>
+        </div>
+      </div>
+      <div class="fleet-layout">
+        <div class="card fleet-map-card">
+          <div class="card-header">
+            <span class="card-title">📍 Abu Dhabi Fleet Map (Simulated)</span>
+            <span class="badge badge-blue">Real-time GPS</span>
+          </div>
+          <div class="map-sim" id="map-sim">
+            <div class="map-bg"></div>
+            <div class="map-buses" id="map-buses"></div>
+            <div class="map-legend">
+              <span class="legend-dot legend-green"></span> Moving
+              <span class="legend-dot legend-yellow"></span> Stopped
+              <span class="legend-dot legend-red"></span> Alert
+            </div>
+          </div>
+        </div>
+        <div class="fleet-sidebar">
+          <div class="card">
+            <div class="card-header"><span class="card-title">🔧 Fleet Health</span></div>
+            <div class="fleet-health-bars">
+              <div class="health-row">
+                <span>GPS Active</span>
+                <div class="hbar"><div class="hbar-fill" style="width:96%"></div></div>
+                <span class="hval">96%</span>
+              </div>
+              <div class="health-row">
+                <span>Inspection Valid</span>
+                <div class="hbar"><div class="hbar-fill" style="width:91%"></div></div>
+                <span class="hval">91%</span>
+              </div>
+              <div class="health-row">
+                <span>Camera Online</span>
+                <div class="hbar"><div class="hbar-fill" style="width:88%"></div></div>
+                <span class="hval">88%</span>
+              </div>
+              <div class="health-row">
+                <span>AC Functional</span>
+                <div class="hbar"><div class="hbar-fill hbar-warn" style="width:78%"></div></div>
+                <span class="hval">78%</span>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">🚍 Vehicle Status</span></div>
+            <div class="vehicle-status-list" id="vehicle-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== COMPLIANCE CENTER ===== -->
+    <section class="tab-section" id="section-compliance">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Compliance Center</h1>
+          <p class="section-sub">Driver · Vehicle · Permit · Training Verification · ADEK Policy</p>
+        </div>
+      </div>
+      <div class="compliance-kpis">
+        <div class="comp-kpi comp-pass"><div class="ck-val">487</div><div class="ck-label">Drivers Compliant</div></div>
+        <div class="comp-kpi comp-fail"><div class="ck-val">13</div><div class="ck-label">Violations Active</div></div>
+        <div class="comp-kpi comp-pass"><div class="ck-val">238</div><div class="ck-label">Vehicles Valid</div></div>
+        <div class="comp-kpi comp-warn"><div class="ck-val">12</div><div class="ck-label">Permits Expiring</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header"><span class="card-title">👤 Driver Compliance Table</span></div>
+          <div class="data-table-wrap">
+            <table class="data-table" id="driver-table">
+              <thead>
+                <tr>
+                  <th>Driver ID</th><th>Name</th><th>Permit</th><th>Medical</th><th>Training</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="driver-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 Violation Breakdown</span></div>
+          <canvas id="violation-chart" height="220"></canvas>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span class="card-title">🤖 Compliance Agent · Policy RAG</span></div>
+        <div class="rag-query-box">
+          <input type="text" id="rag-query" placeholder="Ask about ADEK policy... e.g. 'Guardian handover rules'" />
+          <button id="rag-submit" onclick="runRAGQuery()">Query Policy</button>
+        </div>
+        <div class="rag-result" id="rag-result"></div>
+      </div>
+    </section>
+
+    <!-- ===== INCIDENTS ===== -->
+    <section class="tab-section" id="section-incidents">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Incident Center</h1>
+          <p class="section-sub">AI-managed incident queue · Auto-escalation · Parent notifications</p>
+        </div>
+        <button class="btn-primary" onclick="triggerNewIncident()">+ Simulate Incident</button>
+      </div>
+      <div class="incident-layout">
+        <div class="card incident-queue-card">
+          <div class="card-header"><span class="card-title">🚨 Incident Queue</span><span class="badge badge-red" id="incident-count-badge">7 Open</span></div>
+          <div class="incident-list" id="incident-list"></div>
+        </div>
+        <div class="card incident-detail-card" id="incident-detail">
+          <div class="card-header"><span class="card-title">📋 Incident Detail · Agent Analysis</span></div>
+          <div class="incident-placeholder">
+            <div class="placeholder-icon">🤖</div>
+            <p>Select an incident to view AI agent analysis and recommended actions</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== EXECUTIVE INSIGHTS ===== -->
+    <section class="tab-section" id="section-executive">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">Executive Insights</h1>
+          <p class="section-sub">KPI analysis · Trend detection · AI-generated recommendations</p>
+        </div>
+      </div>
+      <div class="exec-grid">
+        <div class="card exec-wide">
+          <div class="card-header"><span class="card-title">📈 Monthly Compliance Trend</span></div>
+          <canvas id="exec-trend-chart" height="200"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">🎯 Risk Matrix</span></div>
+          <canvas id="risk-chart" height="220"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">🤖 AI Executive Summary</span></div>
+          <div class="ai-summary" id="ai-exec-summary">
+            <div class="ai-thinking"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Generating insights...</div>
+          </div>
+        </div>
+      </div>
+      <div class="card exec-ask-card">
+        <div class="card-header"><span class="card-title">💬 Ask the Executive Agent</span><span class="badge badge-purple">Supervisor → Multi-Agent</span></div>
+        <div class="exec-scenarios">
+          <button class="scenario-btn" onclick="runExecScenario(0)">Why did compliance decrease in March?</button>
+          <button class="scenario-btn" onclick="runExecScenario(1)">What are top 3 risk drivers this week?</button>
+          <button class="scenario-btn" onclick="runExecScenario(2)">Predict next month's incident rate</button>
+          <button class="scenario-btn" onclick="runExecScenario(3)">Generate board summary report</button>
+        </div>
+        <div class="exec-agent-flow" id="exec-agent-flow"></div>
+      </div>
+    </section>
+
+    <!-- ===== AI AGENTS ===== -->
+    <section class="tab-section" id="section-agents">
+      <div class="section-header">
+        <div>
+          <h1 class="section-title">AI Agents · Live Demo</h1>
+          <p class="section-sub">Multi-agent orchestration · LangGraph · A2A Communication · MCP Tools</p>
+        </div>
+      </div>
+
+      <!-- Architecture -->
+      <div class="card arch-card">
+        <div class="card-header"><span class="card-title">🏗️ Multi-Agent Architecture</span></div>
+        <div class="arch-diagram" id="arch-diagram">
+          <div class="arch-node arch-user" id="arch-user">👤 User</div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-node arch-supervisor" id="arch-supervisor">🧠 Supervisor Agent<br><small>LangGraph Orchestrator</small></div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-agents-row">
+            <div class="arch-node arch-agent" id="arch-compliance">✅ Compliance<br><small>PASS · Policy RAG</small></div>
+            <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Incident MCP</small></div>
+            <div class="arch-node arch-agent" id="arch-incident">🚨 Incident<br><small>Notification MCP</small></div>
+            <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Fleet MCP</small></div>
+            <div class="arch-node arch-agent" id="arch-exec">📊 Executive<br><small>Analytics MCP</small></div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-node arch-rag" id="arch-rag">📚 Shared RAG Layer · ChromaDB · ADEK Regulations</div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-mcp-row">
+            <div class="arch-node arch-mcp">🔌 Policy MCP</div>
+            <div class="arch-node arch-mcp">🚌 Fleet MCP</div>
+            <div class="arch-node arch-mcp">👤 Driver MCP</div>
+            <div class="arch-node arch-mcp">📢 Notification MCP</div>
+            <div class="arch-node arch-mcp">🚨 Incident MCP</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Demo Scenarios -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🎬 Live Demo Scenarios</span><span class="badge badge-blue">A2A Communication</span></div>
+        <div class="scenario-grid">
+          <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
+            <div class="sc-num">01</div>
+            <div class="sc-icon">📱</div>
+            <div class="sc-title">Driver Mobile Usage</div>
+            <div class="sc-desc">Safety → Compliance → Incident → Executive</div>
+            <div class="sc-result">Training assigned · Violation logged</div>
+            <button class="sc-btn">▶ Run Scenario</button>
+          </div>
+          <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
+            <div class="sc-num">02</div>
+            <div class="sc-icon">👨‍👩‍👧</div>
+            <div class="sc-title">Missing Guardian</div>
+            <div class="sc-desc">Safety → Policy RAG → Incident Agent</div>
+            <div class="sc-result">Student retained · Parent notified</div>
+            <button class="sc-btn">▶ Run Scenario</button>
+          </div>
+          <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
+            <div class="sc-num">03</div>
+            <div class="sc-icon">🔧</div>
+            <div class="sc-title">Vehicle Inspection Fail</div>
+            <div class="sc-desc">Compliance → Fleet MCP → Route Opt Agent</div>
+            <div class="sc-result">Vehicle blocked · Maintenance ticket</div>
+            <button class="sc-btn">▶ Run Scenario</button>
+          </div>
+          <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
+            <div class="sc-num">04</div>
+            <div class="sc-icon">📉</div>
+            <div class="sc-title">Executive Analysis</div>
+            <div class="sc-desc">Supervisor → Compliance → Incident → Executive</div>
+            <div class="sc-result">Narrative report · Root cause analysis</div>
+            <button class="sc-btn">▶ Run Scenario</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Conversation Log -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💬 Agent Conversation Log</span>
+          <button class="btn-ghost" onclick="clearAgentLog()">Clear</button>
+        </div>
+        <div class="agent-conversation" id="agent-conversation">
+          <div class="conv-placeholder">Run a scenario above to see live agent-to-agent communication</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
