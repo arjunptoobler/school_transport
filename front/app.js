@@ -263,7 +263,31 @@ async function triggerNewIncident() {
 // --- CHARTS ---
 let complianceChart, violationChart, execChart, riskChart;
 
-function initCharts() {
+async function initCharts() {
+  const chartData = await apiFetch("/incidents/charts");
+  let violLabels = ['Permit Issues', 'Speed Limits', 'Seatbelt', 'Distraction', 'Route Deviation'];
+  let violData = [5, 12, 18, 4, 9];
+  let riskData = [65, 40, 80, 20, 55];
+  let compBase = 94.0;
+
+  if (chartData && chartData.success) {
+    violLabels = chartData.violation_breakdown.labels;
+    violData = chartData.violation_breakdown.data;
+    riskData = chartData.risk_matrix.data;
+    compBase = chartData.compliance_base;
+  }
+
+  // Derive a pseudo-historical 7-day trend ending at the current compliance base score
+  const compTrend = [
+    (compBase - 1.2).toFixed(1),
+    (compBase - 0.8).toFixed(1),
+    (compBase - 1.5).toFixed(1),
+    (compBase - 0.3).toFixed(1),
+    (compBase - 0.5).toFixed(1),
+    (compBase + 0.1).toFixed(1),
+    compBase.toFixed(1)
+  ];
+
   const ctxComp = document.getElementById('compliance-chart');
   if (ctxComp) {
     complianceChart = new Chart(ctxComp, {
@@ -272,7 +296,7 @@ function initCharts() {
         labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         datasets: [{
           label: 'Compliance Rate (%)',
-          data: [93.1, 93.5, 93.2, 94.0, 93.8, 94.1, 94.2],
+          data: compTrend,
           borderColor: '#3b82f6',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true,
@@ -282,7 +306,7 @@ function initCharts() {
       options: {
         responsive: true,
         plugins: { legend: { display: false } },
-        scales: { y: { min: 90, max: 100 } }
+        scales: { y: { min: Math.floor(compBase - 5), max: 100 } }
       }
     });
   }
@@ -292,10 +316,10 @@ function initCharts() {
     violationChart = new Chart(ctxViol, {
       type: 'doughnut',
       data: {
-        labels: ['Permit Issues', 'Speed Limits', 'Seatbelt', 'Distraction', 'Route Deviation'],
+        labels: violLabels,
         datasets: [{
-          data: [5, 12, 18, 4, 9],
-          backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6']
+          data: violData,
+          backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
         }]
       },
       options: {
@@ -312,7 +336,7 @@ function initCharts() {
       data: {
         labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
         datasets: [
-          { label: 'Violations logged', data: [12, 14, 25, 15, 8, 5], backgroundColor: '#ef4444' },
+          { label: 'Violations logged', data: [12, 14, 25, 15, 8, violData.reduce((a,b)=>a+b,0)], backgroundColor: '#ef4444' },
           { label: 'Compliant runs', data: [980, 990, 940, 985, 1020, 1050], backgroundColor: '#10b981' }
         ]
       },
@@ -328,17 +352,18 @@ function initCharts() {
     riskChart = new Chart(ctxRisk, {
       type: 'radar',
       data: {
-        labels: ['Speeding', 'Distraction', 'Equipment Failure', 'Permit Expiry', 'Delay Rate'],
+        labels: ['High Severity', 'Distraction', 'Equipment Failure', 'Missing Guardian', 'Med Severity'],
         datasets: [{
           label: 'Risk Vector',
-          data: [65, 40, 80, 20, 55],
+          data: riskData,
           borderColor: '#8b5cf6',
           backgroundColor: 'rgba(139, 92, 246, 0.2)'
         }]
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: false } }
+        plugins: { legend: { display: false } },
+        scales: { r: { min: 0, max: 100 } }
       }
     });
   }

@@ -60,3 +60,62 @@ def simulate_incident(req: IncidentCreate):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+@router.get("/charts")
+def get_charts_data():
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+
+        # 1. Violation Breakdown (Doughnut Chart)
+        cursor.execute("SELECT type, COUNT(*) as count FROM incidents GROUP BY type")
+        violations = cursor.fetchall()
+        violation_labels = []
+        violation_data = []
+        for v in violations:
+            violation_labels.append(v["type"])
+            violation_data.append(v["count"])
+
+        # 2. Risk Matrix (Radar Chart)
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high'")
+        high_risk = cursor.fetchone()[0] * 10
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'med'")
+        med_risk = cursor.fetchone()[0] * 5
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE type LIKE '%Distraction%'")
+        dist_risk = cursor.fetchone()[0] * 15
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE type LIKE '%Inspection%'")
+        insp_risk = cursor.fetchone()[0] * 10
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE type LIKE '%Guardian%'")
+        guard_risk = cursor.fetchone()[0] * 12
+
+        risk_data = [
+            min(100, high_risk + 20),
+            min(100, dist_risk + 10),
+            min(100, insp_risk + 30),
+            min(100, guard_risk + 10),
+            min(100, med_risk + 15),
+        ]
+
+        # 3. Compliance Score (Base for Trend)
+        cursor.execute("SELECT COUNT(*) FROM drivers WHERE permit_status = 'Valid' AND training_status = 'Complete'")
+        compliant_drivers = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM drivers")
+        total_drivers = cursor.fetchone()[0]
+        base_score = round((compliant_drivers / total_drivers) * 100, 1) if total_drivers else 94.0
+
+        return {
+            "success": True,
+            "violation_breakdown": {
+                "labels": violation_labels if violation_labels else ["No Data"],
+                "data": violation_data if violation_data else [1],
+            },
+            "risk_matrix": {
+                "data": risk_data
+            },
+            "compliance_base": base_score
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
