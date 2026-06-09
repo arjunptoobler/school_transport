@@ -95,7 +95,7 @@
         </div>
         <div class="kpi-card kpi-purple" id="kpi-agents-active">
           <div class="kpi-icon">🤖</div>
-          <div class="kpi-value" id="kpi-agents-count">5</div>
+          <div class="kpi-value" id="kpi-agents-count">7</div>
           <div class="kpi-label">AI Agents Active</div>
           <div class="kpi-sub">LangGraph orchestrated</div>
           <div class="agent-pulses">
@@ -175,13 +175,13 @@
             <div class="fleet-health-bars">
               <div class="health-row">
                 <span>GPS Active</span>
-                <div class="hbar"><div class="hbar-fill" style="width:96%"></div></div>
-                <span class="hval">96%</span>
+                <div class="hbar"><div class="hbar-fill" id="hbar-gps" style="width:96%"></div></div>
+                <span class="hval" id="hval-gps">96%</span>
               </div>
               <div class="health-row">
                 <span>Inspection Valid</span>
-                <div class="hbar"><div class="hbar-fill" style="width:91%"></div></div>
-                <span class="hval">91%</span>
+                <div class="hbar"><div class="hbar-fill" id="hbar-insp" style="width:91%"></div></div>
+                <span class="hval" id="hval-insp">91%</span>
               </div>
               <div class="health-row">
                 <span>Camera Online</span>
@@ -212,10 +212,10 @@
         </div>
       </div>
       <div class="compliance-kpis">
-        <div class="comp-kpi comp-pass"><div class="ck-val">487</div><div class="ck-label">Drivers Compliant</div></div>
-        <div class="comp-kpi comp-fail"><div class="ck-val">13</div><div class="ck-label">Violations Active</div></div>
-        <div class="comp-kpi comp-pass"><div class="ck-val">238</div><div class="ck-label">Vehicles Valid</div></div>
-        <div class="comp-kpi comp-warn"><div class="ck-val">12</div><div class="ck-label">Permits Expiring</div></div>
+        <div class="comp-kpi comp-pass"><div class="ck-val" id="ck-compliant">—</div><div class="ck-label">Drivers Compliant</div></div>
+        <div class="comp-kpi comp-fail"><div class="ck-val" id="ck-violations">—</div><div class="ck-label">Violations Active</div></div>
+        <div class="comp-kpi comp-pass"><div class="ck-val" id="ck-vehicles">—</div><div class="ck-label">Vehicles Valid</div></div>
+        <div class="comp-kpi comp-warn"><div class="ck-val" id="ck-slas">—</div><div class="ck-label">SLAs Pending</div></div>
       </div>
       <div class="two-col">
         <div class="card">
@@ -236,13 +236,39 @@
           <canvas id="violation-chart" height="220"></canvas>
         </div>
       </div>
-      <div class="card" style="margin-top:1rem">
-        <div class="card-header"><span class="card-title">🤖 Compliance Agent · Policy RAG</span></div>
-        <div class="rag-query-box">
-          <input type="text" id="rag-query" placeholder="Ask about ADEK policy... e.g. 'Guardian handover rules'" />
-          <button id="rag-submit" onclick="runRAGQuery()">Query Policy</button>
+      <div class="two-col" style="margin-top:1rem">
+        <div class="card">
+          <div class="card-header"><span class="card-title">💰 Recent Fines</span><span class="badge badge-red" id="fines-count-badge">—</span></div>
+          <div class="data-table-wrap">
+            <table class="data-table" id="fines-table">
+              <thead><tr><th>Fine ID</th><th>Driver</th><th>Violation</th><th>Amount (AED)</th><th>Authority</th></tr></thead>
+              <tbody id="fines-tbody"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="rag-result" id="rag-result"></div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">⏱️ Training SLA Deadlines</span><span class="badge badge-yellow" id="sla-count-badge">—</span></div>
+          <div class="sla-list" id="sla-list"></div>
+        </div>
+      </div>
+      <div class="two-col" style="margin-top:1rem">
+        <div class="card">
+          <div class="card-header"><span class="card-title">🪪 Student RFID Boarding Log</span></div>
+          <div class="data-table-wrap">
+            <table class="data-table" id="boardings-table">
+              <thead><tr><th>ID</th><th>Student</th><th>Vehicle</th><th>Event</th><th>Time</th></tr></thead>
+              <tbody id="boardings-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">🤖 Compliance Agent · Policy RAG</span></div>
+          <div class="rag-query-box">
+            <input type="text" id="rag-query" placeholder="Ask about ADEK policy... e.g. 'Guardian handover rules'" />
+            <button id="rag-submit" onclick="runRAGQuery()">Query Policy</button>
+          </div>
+          <div class="rag-result" id="rag-result"></div>
+        </div>
       </div>
     </section>
 
@@ -261,10 +287,10 @@
           <div class="incident-list" id="incident-list"></div>
         </div>
         <div class="card incident-detail-card" id="incident-detail">
-          <div class="card-header"><span class="card-title">📋 Incident Detail · Agent Analysis</span></div>
-          <div class="incident-placeholder">
+          <div class="card-header"><span class="card-title">📋 Incident Detail · Live Agent Analysis</span></div>
+          <div class="incident-placeholder" id="incident-placeholder">
             <div class="placeholder-icon">🤖</div>
-            <p>Select an incident to view AI agent analysis and recommended actions</p>
+            <p>Select an incident to trigger a live multi-agent analysis via the LangGraph pipeline</p>
           </div>
         </div>
       </div>
@@ -296,11 +322,15 @@
       </div>
       <div class="card exec-ask-card">
         <div class="card-header"><span class="card-title">💬 Ask the Executive Agent</span><span class="badge badge-purple">Supervisor → Multi-Agent</span></div>
+        <div class="rag-query-box">
+          <input type="text" id="exec-query" placeholder="Ask any executive question… e.g. 'What are the top risks this week?'" />
+          <button onclick="runExecQuery()">Ask Agent</button>
+        </div>
         <div class="exec-scenarios">
-          <button class="scenario-btn" onclick="runExecScenario(0)">Why did compliance decrease in March?</button>
-          <button class="scenario-btn" onclick="runExecScenario(1)">What are top 3 risk drivers this week?</button>
-          <button class="scenario-btn" onclick="runExecScenario(2)">Predict next month's incident rate</button>
-          <button class="scenario-btn" onclick="runExecScenario(3)">Generate board summary report</button>
+          <button class="scenario-btn" onclick="runExecScenario('Why did compliance decrease in March?')">Why did compliance decrease in March?</button>
+          <button class="scenario-btn" onclick="runExecScenario('What are top 3 risk drivers this week?')">What are top 3 risk drivers this week?</button>
+          <button class="scenario-btn" onclick="runExecScenario('Predict next month incident rate')">Predict next month's incident rate</button>
+          <button class="scenario-btn" onclick="runExecScenario('Generate board summary report')">Generate board summary report</button>
         </div>
         <div class="exec-agent-flow" id="exec-agent-flow"></div>
       </div>
@@ -324,10 +354,11 @@
           <div class="arch-node arch-supervisor" id="arch-supervisor">🧠 Supervisor Agent<br><small>LangGraph Orchestrator</small></div>
           <div class="arch-arrow">↓</div>
           <div class="arch-agents-row">
+            <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Camera · Edge AI</small></div>
             <div class="arch-node arch-agent" id="arch-compliance">✅ Compliance<br><small>PASS · Policy RAG</small></div>
-            <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Incident MCP</small></div>
+            <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Route Engine</small></div>
+            <div class="arch-node arch-agent" id="arch-fleet">🚌 Fleet Monitor<br><small>GPS · Capacity</small></div>
             <div class="arch-node arch-agent" id="arch-incident">🚨 Incident<br><small>Notification MCP</small></div>
-            <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Fleet MCP</small></div>
             <div class="arch-node arch-agent" id="arch-exec">📊 Executive<br><small>Analytics MCP</small></div>
           </div>
           <div class="arch-arrow">↓</div>
@@ -337,8 +368,11 @@
             <div class="arch-node arch-mcp">🔌 Policy MCP</div>
             <div class="arch-node arch-mcp">🚌 Fleet MCP</div>
             <div class="arch-node arch-mcp">👤 Driver MCP</div>
-            <div class="arch-node arch-mcp">📢 Notification MCP</div>
+            <div class="arch-node arch-mcp">📢 Notify MCP</div>
             <div class="arch-node arch-mcp">🚨 Incident MCP</div>
+            <div class="arch-node arch-mcp">💰 Fines MCP</div>
+            <div class="arch-node arch-mcp">⏱️ SLA MCP</div>
+            <div class="arch-node arch-mcp">📡 Telemetry MCP</div>
           </div>
         </div>
       </div>
@@ -351,15 +385,15 @@
             <div class="sc-num">01</div>
             <div class="sc-icon">📱</div>
             <div class="sc-title">Driver Mobile Usage</div>
-            <div class="sc-desc">Safety → Compliance → Incident → Executive</div>
-            <div class="sc-result">Training assigned · Violation logged</div>
+            <div class="sc-desc">Supervisor → Safety → Compliance → Incident → Executive</div>
+            <div class="sc-result">Training assigned · Fine issued · Violation logged</div>
             <button class="sc-btn">▶ Run Scenario</button>
           </div>
           <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
             <div class="sc-num">02</div>
             <div class="sc-icon">👨‍👩‍👧</div>
             <div class="sc-title">Missing Guardian</div>
-            <div class="sc-desc">Safety → Policy RAG → Incident Agent</div>
+            <div class="sc-desc">Supervisor → Safety → Compliance (RAG) → Incident</div>
             <div class="sc-result">Student retained · Parent notified</div>
             <button class="sc-btn">▶ Run Scenario</button>
           </div>
@@ -367,8 +401,8 @@
             <div class="sc-num">03</div>
             <div class="sc-icon">🔧</div>
             <div class="sc-title">Vehicle Inspection Fail</div>
-            <div class="sc-desc">Compliance → Fleet MCP → Route Opt Agent</div>
-            <div class="sc-result">Vehicle blocked · Maintenance ticket</div>
+            <div class="sc-desc">Supervisor → Route Opt → Compliance → Incident</div>
+            <div class="sc-result">Vehicle grounded · Spare dispatched · Ticket filed</div>
             <button class="sc-btn">▶ Run Scenario</button>
           </div>
           <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
@@ -382,6 +416,15 @@
         </div>
       </div>
 
+      <!-- Free-Text Agent Query -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">💬 Ask Any Question (Autonomous Routing)</span><span class="badge badge-purple">Supervisor LLM Classification</span></div>
+        <div class="rag-query-box">
+          <input type="text" id="custom-agent-query" placeholder="e.g. 'What is the fleet capacity utilization on route AU-102?' or 'Check GPS status of bus AU-BUS-140'" />
+          <button onclick="runCustomQuery()">Run Agents</button>
+        </div>
+      </div>
+
       <!-- Agent Conversation Log -->
       <div class="card">
         <div class="card-header">
@@ -389,7 +432,7 @@
           <button class="btn-ghost" onclick="clearAgentLog()">Clear</button>
         </div>
         <div class="agent-conversation" id="agent-conversation">
-          <div class="conv-placeholder">Run a scenario above to see live agent-to-agent communication</div>
+          <div class="conv-placeholder">Run a scenario or ask a question to see live agent-to-agent communication</div>
         </div>
       </div>
     </section>
