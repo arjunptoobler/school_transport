@@ -70,3 +70,20 @@ python3 -c "from backend.agents import run_agentic_flow; print(len(run_agentic_f
 # Output: 4 steps successfully merged and returned.
 ```
 The system is now fully standardized, robust, and optimized for enterprise-grade scalability.
+
+---
+
+## 4. Analysis: The Shared RAG Architecture
+
+A critical evaluation of maintaining a single unified vector database (ChromaDB) across all agents:
+
+### Core Advantages
+1. **Single Source of Truth**: Changes to regulatory guidelines (e.g. updating the ADEK safeguarding or transport policy PDFs) only need to be ingested once. All specialized agents immediately pull from the same updated dataset, ensuring alignment and preventing conflicting outputs.
+2. **Cross-Domain Context Synthesis**: In real-world incidents, topics cross domains. A "missing guardian" drops into safety guidelines (SOPs), compliance rules (driver responsibility), and incident workflows. A shared RAG allows different agents to retrieve relevant cross-referenced segments in a single step.
+3. **Resource & Overhead Minimization**: Vector stores consume considerable file handles, memory, and database connections. Accessing a shared database client singleton avoids multi-tenant lockouts and maintains low container boot times.
+
+### Key Criticisms & Trade-offs
+1. **Context Window Pollution (Noise)**: Because all files reside in the same pool, a query from a Safety Agent may occasionally retrieve irrelevant administrative compliance procedures if they share similar keyword frequencies, wasting LLM tokens and diluting context.
+2. **Security & Access Boundary Control**: In production, certain policy sections are sensitive. A shared RAG exposes all indexed content to all agents. If one agent node is compromised, it can query and leak restricted information from unrelated folders.
+3. **Coarse Chunking Trade-off**: A shared RAG uses a uniform character chunk size (600 characters). However, checklist audits benefit from table-based parsing, whereas regulatory policies benefit from hierarchical sentence-based parsing. A shared setup prevents fine-tuning extraction strategies per domain.
+
