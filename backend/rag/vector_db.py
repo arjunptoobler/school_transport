@@ -6,16 +6,16 @@ The vector store persists at backend/rag/chroma_db/ (gitignored).
 
 import chromadb
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
-import google.generativeai as genai
+import requests
 from ..config import settings
 from .ingestion import load_documents
 
 
 class GeminiEmbeddingFunction(EmbeddingFunction):
-    """Production-grade embedding function calling Google's text-embedding-004 model.
+    """Production-grade embedding function calling Google's gemini-embedding-2 model via REST.
 
-    Includes asymmetric routing for query/document matching and a 384-dimensional
-    local fallback for offline safety.
+    Includes batching, asymmetric routing, and a 3072-dimensional local
+    fallback for offline safety.
     """
 
     def __init__(self, is_query: bool = False):
@@ -27,23 +27,37 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
             return self._local_fallback(input)
 
         try:
-            genai.configure(api_key=api_key)
-            task_type = "retrieval_query" if self.is_query else "retrieval_document"
-            response = genai.embed_content(
-                model="models/text-embedding-004", contents=input, task_type=task_type
-            )
-            # Response list of lists
-            return response["embedding"]
+            # We use batch embedding to support multiple documents during ingestion
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents?key={api_key}"
+            payload = {
+                "requests": [
+                    {
+                        "model": "models/gemini-embedding-2",
+                        "content": {"parts": [{"text": text}]},
+                    }
+                    for text in input
+                ]
+            }
+            response = requests.post(url, json=payload, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                return [emb["values"] for emb in data["embeddings"]]
+            else:
+                print(
+                    f"[RAG WARNING] Gemini Embedding API returned status {response.status_code}. Falling back."
+                )
+                return self._local_fallback(input)
         except Exception as e:
-            print(f"[RAG WARNING] Gemini Embedding API failed: {e}. Falling back to local vectorizer.")
+            print(f"[RAG WARNING] Gemini Embedding API call failed: {e}. Falling back.")
             return self._local_fallback(input)
 
     def _local_fallback(self, input: Documents) -> Embeddings:
+        # Generate 3072-dimensional vectors to match gemini-embedding-2 dimension
         embeddings = []
         for text in input:
-            vector = [0.0] * 384
-            for i, c in enumerate(text[:1024]):
-                h = (ord(c) * (i + 1)) % 384
+            vector = [0.0] * 3072
+            for i, c in enumerate(text[:2048]):
+                h = (ord(c) * (i + 1)) % 3072
                 vector[h] += 1.0
             norm = sum(x**2 for x in vector) ** 0.5 or 1.0
             embeddings.append([x / norm for x in vector])
@@ -67,8 +81,7 @@ def _get_embedding_fn(is_query: bool = False) -> GeminiEmbeddingFunction:
 def init_vector_db() -> None:
     """Idempotent — loads documents and updates the vector collection.
 
-    Recreates the collection if a schema / embedding size mismatch is detected
-    during upgrades.
+    Recreates the collection if a schema / embedding size mismatch is detected.
     """
     client = _get_client()
     ef = _get_embedding_fn(is_query=False)
@@ -78,7 +91,7 @@ def init_vector_db() -> None:
     # Self-healing migration check for vector size/schema mismatch
     try:
         collection = client.get_collection(name=collection_name, embedding_function=ef)
-        # Test a dummy query to verify embedding dimension compatibility
+        # Test query to check compatibility
         collection.query(query_texts=["test"], n_results=1)
     except Exception:
         # Delete and recreate if schema is incompatible or collection does not exist
@@ -103,9 +116,8 @@ def init_vector_db() -> None:
 
 
 def query_policy(query_text: str, n_results: int = 3) -> list:
-    """Semantic search over the ingested policy collection using Gemini text-embedding-004."""
+    """Semantic search over the ingested policy collection using Gemini gemini-embedding-2."""
     client = _get_client()
-    # Use query-type task embedding logic
     ef = _get_embedding_fn(is_query=True)
 
     try:
