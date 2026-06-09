@@ -87,3 +87,22 @@ A critical evaluation of maintaining a single unified vector database (ChromaDB)
 2. **Security & Access Boundary Control**: In production, certain policy sections are sensitive. A shared RAG exposes all indexed content to all agents. If one agent node is compromised, it can query and leak restricted information from unrelated folders.
 3. **Coarse Chunking Trade-off**: A shared RAG uses a uniform character chunk size (600 characters). However, checklist audits benefit from table-based parsing, whereas regulatory policies benefit from hierarchical sentence-based parsing. A shared setup prevents fine-tuning extraction strategies per domain.
 
+---
+
+## 5. Alternative: Isolated RAG per Agent
+
+If we split the RAG into three distinct collections (e.g. `safety_db`, `compliance_db`, `incident_db`):
+
+### How it would make the project BETTER:
+- **Zero Query Noise**: The Safety Agent's queries are mathematically restricted to safeguarding and surveillance documents, guaranteeing 100% precision with zero administrative clutter.
+- **Strict Least-Privilege Security**: Prevents data leakage between agent boundaries (e.g. preventing a safety camera monitoring agent from accessing sensitive incident report metrics or compliance logs).
+- **Customized Ingestion Strategies**: We can apply hierarchical chunking for complex regulatory files while using table/key-value parsing for incident metrics and pre-trip checklists.
+
+### How it would make the project WORSE:
+- **Context Siloing**: In multi-agent pipelines, scenarios overlap. For instance, a "missing guardian" event has both a safeguarding component (Safety) and a permit/reporting component (Compliance/Incident). If databases are isolated, agents cannot retrieve cross-domain insights unless complex cross-agent querying is implemented, leading to high latency.
+- **Maintenance & Indexing Overhead**: Defragmenting the data requires managing multiple collections, increasing pipeline setup steps, memory usage, and vector dimension synchronization code.
+
+### Verdict for the Current Project:
+For our current system, **the Shared RAG is superior**. Since our agents must coordinate closely and share a unified state graph, isolating the databases would force us to build redundant lookups. However, if this system scales to production with strict safety data constraints, transitioning to **Isolated RAG Collections** would become a security requirement.
+
+
