@@ -38,8 +38,8 @@ def simulate_incident(req: IncidentCreate):
 
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO incidents VALUES (?,?,?,?,?,?,?)",
-            (inc_id, req.severity, req.type, req.driver_id, req.vehicle_id, timestamp, req.description),
+            "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?)",
+            (inc_id, req.severity, req.type, req.driver_id, req.vehicle_id, timestamp, req.description, "Detected"),
         )
         conn.commit()
 
@@ -53,6 +53,7 @@ def simulate_incident(req: IncidentCreate):
                 "vehicle_id": req.vehicle_id,
                 "timestamp": timestamp,
                 "description": req.description,
+                "status": "Detected",
             },
         }
     except Exception as e:

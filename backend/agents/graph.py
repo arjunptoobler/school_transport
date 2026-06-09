@@ -7,6 +7,7 @@ from .safety import safety_agent
 from .incident import incident_agent
 from .executive import executive_agent
 from .route_optimization import route_optimization_agent
+from .fleet_monitoring import fleet_monitoring_agent
 
 # Compiled once at module import — StateGraph.compile() is safe to reuse across requests
 _agent_graph = None
@@ -19,6 +20,7 @@ def _build_graph():
     workflow.add_node("safety",      safety_agent)
     workflow.add_node("compliance",  compliance_agent)
     workflow.add_node("route_optimization", route_optimization_agent)
+    workflow.add_node("fleet_monitoring", fleet_monitoring_agent)
     workflow.add_node("incident",    incident_agent)
     workflow.add_node("executive",   executive_agent)
 
@@ -32,6 +34,7 @@ def _build_graph():
         "safety": "safety",
         "compliance": "compliance",
         "route_optimization": "route_optimization",
+        "fleet_monitoring": "fleet_monitoring",
         "incident": "incident",
         "executive": "executive",
         END: END
@@ -41,6 +44,8 @@ def _build_graph():
     workflow.add_conditional_edges("safety",      route_next, {**edges})
     workflow.add_conditional_edges("route_optimization", route_next,
                                    {"compliance": "compliance", "executive": "executive", END: END})
+    workflow.add_conditional_edges("fleet_monitoring", route_next,
+                                   {"safety": "safety", "executive": "executive", END: END})
     workflow.add_conditional_edges("compliance",  route_next,
                                    {"incident": "incident", "executive": "executive", END: END})
     workflow.add_conditional_edges("incident",    route_next,

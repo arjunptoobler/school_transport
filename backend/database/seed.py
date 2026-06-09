@@ -23,7 +23,9 @@ def seed_database():
         license_plate TEXT,
         age INTEGER,
         gps_status TEXT,
-        inspection_status TEXT
+        inspection_status TEXT,
+        capacity INTEGER,
+        current_occupancy INTEGER
     )
     """)
     
@@ -46,7 +48,18 @@ def seed_database():
         driver_id TEXT,
         vehicle_id TEXT,
         timestamp TEXT,
-        description TEXT
+        description TEXT,
+        status TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS student_boardings (
+        boarding_id TEXT PRIMARY KEY,
+        student_id TEXT,
+        vehicle_id TEXT,
+        event_type TEXT,
+        timestamp TEXT
     )
     """)
 
@@ -93,11 +106,13 @@ def seed_database():
     if cursor.fetchone()[0] > 0:
         cursor.execute("SELECT COUNT(*) FROM fines")
         if cursor.fetchone()[0] > 0:
-            conn.close()
-            return
+            cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='student_boardings'")
+            if cursor.fetchone()[0] > 0:
+                conn.close()
+                return
 
     # Clear old tables to prevent key constraints on re-seeding
-    for tbl in ["drivers", "vehicles", "students", "incidents", "fines", "compliance_sla", "edge_telemetry"]:
+    for tbl in ["drivers", "vehicles", "students", "incidents", "fines", "compliance_sla", "edge_telemetry", "student_boardings"]:
         cursor.execute(f"DELETE FROM {tbl}")
 
     # Seed Drivers (500 records)
@@ -125,9 +140,11 @@ def seed_database():
         age = random.randint(1, 10)
         gps = "online" if i % 40 != 0 else "offline"
         insp = "valid" if i % 30 != 0 else "failed"
-        vehicles.append((veh_id, plate, age, gps, insp))
+        capacity = random.choice([30, 40, 50])
+        current_occ = random.randint(5, capacity - 2)
+        vehicles.append((veh_id, plate, age, gps, insp, capacity, current_occ))
         
-    cursor.executemany("INSERT INTO vehicles VALUES (?,?,?,?,?)", vehicles)
+    cursor.executemany("INSERT INTO vehicles VALUES (?,?,?,?,?,?,?)", vehicles)
     
     # Seed Students (5000 records)
     schools = ["Abu Dhabi International School", "GEMS World Academy Abu Dhabi", "The British School Al Khubairat", "ADEK Model School"]
@@ -153,6 +170,7 @@ def seed_database():
         ("Seatbelt Violation", "med", "Student detected without seatbelt while bus was in motion."),
         ("Minor Delay", "low", "Delay reported due to traffic congestion.")
     ]
+    statuses = ["Detected", "Validation", "Notification", "Investigation", "Resolution", "Reporting"]
     
     for i in range(1, 1001):
         inc_id = f"INC-2026-{i:04d}"
@@ -160,9 +178,22 @@ def seed_database():
         drv_id = f"DRV-{1000 + random.randint(1, 500)}"
         veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"
         timestamp = f"2026-06-08T{random.randint(7, 16):02d}:{random.randint(0, 59):02d}:00"
-        incidents.append((inc_id, severity, inc_type, drv_id, veh_id, timestamp, desc))
+        status = random.choice(statuses)
+        incidents.append((inc_id, severity, inc_type, drv_id, veh_id, timestamp, desc, status))
         
-    cursor.executemany("INSERT INTO incidents VALUES (?,?,?,?,?,?,?)", incidents)
+    cursor.executemany("INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?)", incidents)
+
+    # Seed Student Boardings (RFID card swipes)
+    boardings = []
+    for i in range(1, 201):
+        boarding_id = f"BND-{5000 + i}"
+        stud_id = f"STD-{10000 + random.randint(1, 5000)}"
+        veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"
+        etype = random.choice(["boarding", "alighting"])
+        ts = f"2026-06-08T{random.randint(7, 16):02d}:{random.randint(0, 59):02d}:00"
+        boardings.append((boarding_id, stud_id, veh_id, etype, ts))
+        
+    cursor.executemany("INSERT INTO student_boardings VALUES (?,?,?,?,?)", boardings)
 
     # Seed Fines
     fines = []

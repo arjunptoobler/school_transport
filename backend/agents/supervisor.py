@@ -22,20 +22,23 @@ def supervisor_agent(state: AgentState) -> dict:
             f"Return exactly one word matching the next agent name:\n"
             f"- 'safety': for distractions, cameras, speed violations, missing guardian, or physical route safety issues.\n"
             f"- 'compliance': for PASS permits, driver licensing status, or regulatory RAG lookups.\n"
-            f"- 'route_optimization': for route deviations, detours, GPS offline warnings, bus delays, or capacity balancing.\n"
+            f"- 'route_optimization': for route deviations, detours, GPS offline warnings, or bus delays.\n"
+            f"- 'fleet_monitoring': for active fleet health, GPS telemetry signals, occupancy tracking, or capacity utilization ratio checks.\n"
             f"- 'executive': for summaries, analytics, overall metrics, or performance ratios.\n"
-            f"Next step (exactly one word: safety, compliance, route_optimization, executive):"
+            f"Next step (exactly one word: safety, compliance, route_optimization, fleet_monitoring, executive):"
         )
         llm_decision = call_gemini(
             prompt=routing_prompt,
             system_instruction="You are the Routing Supervisor for the ADEK School Transportation platform.",
         )
         cleaned = llm_decision.strip().lower() if llm_decision else ""
-        if cleaned in ["safety", "compliance", "route_optimization", "executive"]:
+        if cleaned in ["safety", "compliance", "route_optimization", "fleet_monitoring", "executive"]:
             next_step = cleaned
         else:
             # Fallback logic
-            if any(w in query.lower() for w in ["deviation", "route", "gps", "delay", "capacity"]):
+            if any(w in query.lower() for w in ["gps", "telemetry", "capacity", "occupancy", "fleet", "utilization"]):
+                next_step = "fleet_monitoring"
+            elif any(w in query.lower() for w in ["deviation", "route", "delay"]):
                 next_step = "route_optimization"
             elif any(w in query.lower() for w in ["handover", "guardian", "policy"]):
                 next_step = "compliance"

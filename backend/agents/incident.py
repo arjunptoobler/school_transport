@@ -35,10 +35,11 @@ def incident_agent(state: AgentState) -> dict:
             description="Cabin camera phone usage alert.",
         )
         inc_id = result.get("incident_id", "INC-NEW")
+        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Notification")
         fallback_msg = f"🚨 Creating emergency ticket {inc_id} in database. Sending SMS alerts to Operator Command and preparing safety training assignment."
         tool = "Notification MCP, Incident Database"
         next_step = "executive"
-        prompt_desc = f"Filing high-severity ticket {inc_id} for driver distraction ({driver_id}) on bus {vehicle_id}. Alerting command centre."
+        prompt_desc = f"Filing high-severity ticket {inc_id} for driver distraction ({driver_id}) on bus {vehicle_id}. Alerting command centre. Lifecycle: Notification."
     elif scenario == 1:
         mcp_registry.call_tool(
             "mcp_send_sms",
@@ -54,10 +55,11 @@ def incident_agent(state: AgentState) -> dict:
             description=f"Guardian {guardian} not present for student {s_name}.",
         )
         inc_id = result.get("incident_id", "INC-NEW")
+        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Investigation")
         fallback_msg = f"🚨 Alerting parent via WhatsApp: 'Student remains safely on bus. Bus will return student to School Guard hub at 16:30.' Incident ticket {inc_id} filed."
         tool = "Notification MCP, Incident Database"
         next_step = "end"
-        prompt_desc = f"Guardian {guardian} absent at stop. Student {s_name} held safely on board by driver {driver_id} on vehicle {vehicle_id}. Parent alerted via SMS/WhatsApp. Filed ticket {inc_id}."
+        prompt_desc = f"Guardian {guardian} absent at stop. Student {s_name} held safely on board by driver {driver_id} on vehicle {vehicle_id}. Parent alerted via SMS/WhatsApp. Filed ticket {inc_id}. Lifecycle: Investigation."
     elif scenario == 2:
         result = mcp_registry.call_tool(
             "mcp_create_incident",
@@ -68,10 +70,11 @@ def incident_agent(state: AgentState) -> dict:
             description="Failed pre-trip brakes inspection.",
         )
         inc_id = result.get("incident_id", "INC-NEW")
+        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolution")
         fallback_msg = f"🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106 to pick up passengers. Incident ticket {inc_id} registered."
         tool = "Route Optimization MCP"
         next_step = "end"
-        prompt_desc = f"Logged pre-trip checklist failure {inc_id} for {vehicle_id} under driver {driver_id}. Recalculated dynamic route, standby bus AU-BUS-106 dispatched."
+        prompt_desc = f"Logged pre-trip checklist failure {inc_id} for {vehicle_id} under driver {driver_id}. Recalculated dynamic route, standby bus AU-BUS-106 dispatched. Lifecycle: Resolution."
     elif scenario == 3:
         conn = get_db_connection()
         try:
