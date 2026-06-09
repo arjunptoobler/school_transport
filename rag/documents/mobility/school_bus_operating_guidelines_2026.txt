@@ -1,0 +1,24 @@
+Abu Dhabi Integrated Transport Centre (ITC) — School Transport Operational Guidelines (2026)
+
+Section 1 — Regulatory Authority and Supremacy
+The Integrated Transport Centre (ITC) under the Department of Municipalities and Transport (DMT) is the lead government authority responsible for licensing and regulating all school transport services in the Emirate of Abu Dhabi.
+- Legal Framework: All transport operators, private schools, and government schools must comply with the Executive Regulation Concerning School Transport Service in the Emirate of Abu Dhabi (DMT, 2017) and the Abu Dhabi Guideline for School Bus Route Regularization (QCC, 2023).
+- Hierarchy of Regulation: In the event of a conflict between school-specific internal policies or Department of Education and Knowledge (ADEK) operational guidelines, Integrated Transport Centre (ITC) / Abu Dhabi Mobility regulations shall take absolute precedence.
+- DMT Service Support Centre Hotline: Violations and security escalations may be reported directly to the DMT Service Support Centre at 800850.
+
+Section 2 — Mandatory Driver Permits and Training
+No individual is permitted to operate a school transport vehicle in the Emirate of Abu Dhabi without holding a valid UAE School Bus Driver Permit issued by the ITC.
+- Permit Criteria: Drivers must pass annual medical fitness examinations, criminal record background clearance, and practical driving evaluations.
+- Periodic Safety Training: All drivers must complete the compulsory Safe-Driving and Safety Induction training programs. Failure to complete refresher evaluations results in immediate permit suspension.
+
+Section 3 — Bus Supervisor and Handover Mandates
+All school transport services conveying students under the age of 11 (or younger than Grade 5) must have an authorized Bus Supervisor (safety attendant) on board during the entire journey.
+- Student Supervision: The school bus operator and supervisor are legally responsible for student safety during the commute, including during boarding, transit, and drop-off.
+- Guardian Handover Rule: Students under 11 years of age must not be left unattended at any drop-off point. They must be physically handed over to a parent, guardian, or authorized designated adult.
+- Child Independence Policy: Children under the age of 15 are not permitted to commute independently on school transport and must be accompanied or met at drop-off by an adult. If no guardian is present at the drop-off point, the supervisor must keep the student safely on board the vehicle, notify the control room, and return the student to the designated school hub.
+
+Section 4 — Salama System & GPS Fleet Monitoring
+All school buses operating in Abu Dhabi must be equipped with active GPS tracking units linked to the official Salama Application.
+- Real-time Monitoring: The Salama App allows parents, schools, and regulators to monitor transit routes, check boarding/alighting status, and communicate directly with the bus supervisor.
+- Route Deviations: Operators must follow pre-approved route corridors. Any unauthorized deviation exceeding 200 meters triggers an automated warning alert to the command centre.
+- GPS Downtime: If a GPS tracker goes offline for more than 15 minutes, the vehicle must be flagged as non-compliant and grounded until repaired.

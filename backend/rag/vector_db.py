@@ -27,26 +27,31 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
             return self._local_fallback(input)
 
         try:
-            # We use batch embedding to support multiple documents during ingestion
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents?key={api_key}"
-            payload = {
-                "requests": [
-                    {
-                        "model": "models/gemini-embedding-2",
-                        "content": {"parts": [{"text": text}]},
-                    }
-                    for text in input
-                ]
-            }
-            response = requests.post(url, json=payload, timeout=10.0)
-            if response.status_code == 200:
-                data = response.json()
-                return [emb["values"] for emb in data["embeddings"]]
-            else:
-                print(
-                    f"[RAG WARNING] Gemini Embedding API returned status {response.status_code}. Falling back."
-                )
-                return self._local_fallback(input)
+            # We use batch embedding, segmenting into sub-batches of 50 to avoid API payload size/rate limits
+            embeddings = []
+            batch_size = 50
+            for start_idx in range(0, len(input), batch_size):
+                batch = input[start_idx : start_idx + batch_size]
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:batchEmbedContents?key={api_key}"
+                payload = {
+                    "requests": [
+                        {
+                            "model": "models/gemini-embedding-2",
+                            "content": {"parts": [{"text": text}]},
+                        }
+                        for text in batch
+                    ]
+                }
+                response = requests.post(url, json=payload, timeout=15.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    embeddings.extend([emb["values"] for emb in data["embeddings"]])
+                else:
+                    print(
+                        f"[RAG WARNING] Gemini Embedding API returned status {response.status_code} for batch. Falling back."
+                    )
+                    return self._local_fallback(input)
+            return embeddings
         except Exception as e:
             print(f"[RAG WARNING] Gemini Embedding API call failed: {e}. Falling back.")
             return self._local_fallback(input)
