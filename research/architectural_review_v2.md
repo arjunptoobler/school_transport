@@ -105,4 +105,23 @@ If we split the RAG into three distinct collections (e.g. `safety_db`, `complian
 ### Verdict for the Current Project:
 For our current system, **the Shared RAG is superior**. Since our agents must coordinate closely and share a unified state graph, isolating the databases would force us to build redundant lookups. However, if this system scales to production with strict safety data constraints, transitioning to **Isolated RAG Collections** would become a security requirement.
 
+---
+
+## 6. Specialist Agents vs. A Single Generalist Agent
+
+If all agents share the same RAG, why not just use a single generalist LLM prompt? 
+
+### 1. Prompt Dilution vs. Focused Instruction Sets
+A single generalist prompt trying to evaluate safety, cross-reference active driver permits, format incident reports, and summarize executive analytics suffers from instruction overlap. LLMs degrade in performance when forced to hold long, conflicting personas. Specialized agents use concise, focused system instructions, guaranteeing near 100% adherence to specific role guidelines.
+
+### 2. Privilege Separation and Tool Control
+A single generalist agent would require access to all tools (read database, check permits, send SMS/WhatsApp alerts, modify route records). This introduces severe reliability risks—the model could accidentally trigger write-heavy mutation tools (like sending alert notifications) during a simple safety validation. By segregating the logic into nodes, the Incident Agent holds write-access tools, while the Safety Agent remains strictly read-only.
+
+### 3. Workflow Determinism
+A multi-agent state graph (LangGraph) enforces strict execution paths (e.g. evaluating safety risks *before* running compliance checks, and sending notifications *only* after verification). Leaving a single generalist LLM to decide its own execution flow in a loop often results in skipped check steps, infinite loops, or premature notifications.
+
+### 4. Auditability and State Logging
+Dividing concerns into discrete agent steps allows human operators to audit the decision chain clearly (e.g. "Safety Agent flagged hazard at 10:15, Compliance verified at 10:16, Incident notified at 10:17"). A single generalist LLM outputs one block of text, making structured step-by-step auditing virtually impossible.
+
+
 
