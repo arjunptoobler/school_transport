@@ -49,12 +49,56 @@ def seed_database():
         description TEXT
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS fines (
+        fine_id TEXT PRIMARY KEY,
+        driver_id TEXT,
+        vehicle_id TEXT,
+        violation_type TEXT,
+        amount REAL,
+        authority TEXT,
+        timestamp TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS compliance_sla (
+        sla_id TEXT PRIMARY KEY,
+        driver_id TEXT,
+        incident_id TEXT,
+        assigned_date TEXT,
+        deadline_date TEXT,
+        status TEXT,
+        resolution_date TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS edge_telemetry (
+        event_id TEXT PRIMARY KEY,
+        vehicle_id TEXT,
+        event_type TEXT,
+        confidence REAL,
+        gforce_x REAL,
+        gforce_y REAL,
+        gforce_z REAL,
+        evidence_url TEXT,
+        timestamp TEXT
+    )
+    """)
     
-    # Check if data exists
-    cursor.execute("SELECT COUNT(*) FROM drivers")
+    # Check if data exists in the fines table (indicates new schema is seeded)
+    cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='fines'")
     if cursor.fetchone()[0] > 0:
-        conn.close()
-        return
+        cursor.execute("SELECT COUNT(*) FROM fines")
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return
+
+    # Clear old tables to prevent key constraints on re-seeding
+    for tbl in ["drivers", "vehicles", "students", "incidents", "fines", "compliance_sla", "edge_telemetry"]:
+        cursor.execute(f"DELETE FROM {tbl}")
 
     # Seed Drivers (500 records)
     operators = ["Al Ghazal Transport", "Emirates Transport", "Hafilat School Transportation", "Abu Dhabi Transport"]
@@ -119,6 +163,55 @@ def seed_database():
         incidents.append((inc_id, severity, inc_type, drv_id, veh_id, timestamp, desc))
         
     cursor.executemany("INSERT INTO incidents VALUES (?,?,?,?,?,?,?)", incidents)
+
+    # Seed Fines
+    fines = []
+    fine_violations = [
+        ("Driver Distraction", 5000.0, "DMT"),
+        ("Speed Violation", 3000.0, "DMT"),
+        ("Seatbelt Violation", 1000.0, "ADEK"),
+        ("Pre-trip Inspection Failure", 2000.0, "DMT")
+    ]
+    for i in range(1, 101):
+        fine_id = f"FINE-{2000 + i}"
+        drv_id = f"DRV-{1000 + random.randint(1, 500)}"
+        veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"
+        violation, amount, auth = random.choice(fine_violations)
+        ts = f"2026-06-08T{random.randint(7, 16):02d}:{random.randint(0, 59):02d}:00"
+        fines.append((fine_id, drv_id, veh_id, violation, amount, auth, ts))
+        
+    cursor.executemany("INSERT INTO fines VALUES (?,?,?,?,?,?,?)", fines)
+
+    # Seed Compliance SLAs
+    slas = []
+    for i in range(1, 51):
+        sla_id = f"SLA-{3000 + i}"
+        drv_id = f"DRV-{1000 + random.randint(1, 500)}"
+        inc_id = f"INC-2026-{random.randint(1, 1000):04d}"
+        assigned = "2026-06-02T08:00:00"
+        deadline = "2026-06-07T08:00:00"
+        status = "Pending" if i % 3 != 0 else "Completed"
+        res_date = "2026-06-06T14:30:00" if status == "Completed" else None
+        slas.append((sla_id, drv_id, inc_id, assigned, deadline, status, res_date))
+        
+    cursor.executemany("INSERT INTO compliance_sla VALUES (?,?,?,?,?,?,?)", slas)
+
+    # Seed Edge Telemetry Logs
+    telemetries = []
+    telemetry_types = [
+        ("Collision", 0.98, -1.2, 3.4, 0.5, "https://storage.adek.gov.ae/evidence/collision_ch23.mp4"),
+        ("Phone_Usage", 0.95, 0.0, 0.0, 1.0, "https://storage.adek.gov.ae/evidence/distracted_drv_99.jpg"),
+        ("Harsh_Brake", 0.88, -0.9, -2.1, 0.1, "https://storage.adek.gov.ae/evidence/telemetry_hb_02.csv"),
+        ("Missing_Guardian", 0.99, 0.0, 0.0, 0.0, "https://storage.adek.gov.ae/evidence/handover_missing_std44.jpg")
+    ]
+    for i in range(1, 51):
+        evt_id = f"EVT-{4000 + i}"
+        veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"
+        etype, conf, gx, gy, gz, url = random.choice(telemetry_types)
+        ts = f"2026-06-08T{random.randint(7, 16):02d}:{random.randint(0, 59):02d}:00"
+        telemetries.append((evt_id, veh_id, etype, conf, gx, gy, gz, url, ts))
+        
+    cursor.executemany("INSERT INTO edge_telemetry VALUES (?,?,?,?,?,?,?,?,?)", telemetries)
     
     conn.commit()
     conn.close()
