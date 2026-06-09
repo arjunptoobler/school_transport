@@ -345,7 +345,7 @@ async function runRAGQuery() {
   if (res && res.success && res.results && res.results.length > 0) {
     let html = "";
     res.results.forEach(doc => {
-      html += `<strong>${doc.authority} ${doc.document} (${doc.section}):</strong><br>
+      html += `<strong>${doc.authority} — ${doc.filename} (Chunk #${doc.chunk_index}):</strong><br>
                ${doc.text}<br><br>`;
     });
     resDiv.innerHTML = html;
