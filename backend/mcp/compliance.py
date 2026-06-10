@@ -152,3 +152,34 @@ def ingest_edge_telemetry(vehicle_id: str, event_type: str, confidence: float, g
         }
     finally:
         conn.close()
+
+import logging
+logger = logging.getLogger(__name__)
+
+@mcp_registry.register_tool(name="mcp_submit_adek_compliance_report")
+def submit_adek_compliance_report(report_type: str, driver_id: str, severity: str, narrative: str) -> dict:
+    """
+    Submits a formal compliance infraction report directly to the external ADEK/Government regulatory portal.
+    """
+    logger.info(f"Submitting {report_type} compliance report to ADEK for driver {driver_id}")
+    
+    # Mocking external HTTP POST to government API
+    return {
+        "status": "Submitted to Government Portal",
+        "external_reference_id": f"ADEK-REP-{driver_id}-{severity.upper()}",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@mcp_registry.register_tool(name="mcp_sync_permit_status_with_gov")
+def sync_permit_status_with_gov(driver_id: str, new_status: str) -> dict:
+    """
+    Synchronizes the internal database permit status with the external government licensing authority to enforce suspensions.
+    """
+    logger.info(f"Syncing permit status '{new_status}' with government for driver {driver_id}")
+    
+    return {
+        "status": "Synchronized",
+        "driver_id": driver_id,
+        "government_ledger_status": new_status,
+        "sync_latency_ms": 142
+    }

@@ -64,6 +64,26 @@ def update_incident_status(incident_id: str, status: str):
         cursor = conn.cursor()
         cursor.execute("UPDATE incidents SET status = ? WHERE incident_id = ?", (status, incident_id))
         conn.commit()
-        return {"success": True, "incident_id": incident_id, "status": status}
+        return {"status": "success", "incident_id": incident_id, "new_status": status}
+    finally:
+        conn.close()
+
+
+@mcp_registry.register_tool(name="mcp_flag_for_manual_override")
+def flag_for_manual_override(incident_id: str, reason: str, dispatcher_id: str = "CMD-CENTER-AUTO") -> dict:
+    """
+    Halts autonomous resolution for an incident and flags it for immediate human-in-the-loop (Command Center) review.
+    """
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE incidents SET status = 'Manual Override' WHERE incident_id = ?", (incident_id,))
+        conn.commit()
+        return {
+            "status": "Halted Workflow",
+            "incident_id": incident_id,
+            "override_reason": reason,
+            "dispatcher_id": dispatcher_id
+        }
     finally:
         conn.close()
