@@ -46,14 +46,10 @@ def _build_graph():
     workflow.add_conditional_edges("supervisor",  route_next, edges)
     workflow.add_conditional_edges("safety",      route_next, {**edges})
     workflow.add_conditional_edges("evidence",    route_next, {**edges})
-    workflow.add_conditional_edges("route_optimization", route_next,
-                                   {"compliance": "compliance", "executive": "executive", "evidence": "evidence", END: END})
-    workflow.add_conditional_edges("fleet_monitoring", route_next,
-                                   {"safety": "safety", "executive": "executive", "evidence": "evidence", END: END})
-    workflow.add_conditional_edges("compliance",  route_next,
-                                   {"incident": "incident", "executive": "executive", END: END})
-    workflow.add_conditional_edges("incident",    route_next,
-                                   {"executive": "executive", "evidence": "evidence", END: END})
+    workflow.add_conditional_edges("route_optimization", route_next, {**edges})
+    workflow.add_conditional_edges("fleet_monitoring", route_next, {**edges})
+    workflow.add_conditional_edges("compliance",  route_next, {**edges})
+    workflow.add_conditional_edges("incident",    route_next, {**edges})
     workflow.add_conditional_edges("executive",   lambda _: END, {END: END})
 
     return workflow.compile()
