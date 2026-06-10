@@ -16,17 +16,26 @@ def supervisor_agent(state: AgentState) -> dict:
     elif scenario == 3 and not event_payload:
         event_payload = "System trigger: Generate Executive C-Level Summary of platform metrics."
 
+    # Define A2A Agent Capabilities Registry
+    AGENT_REGISTRY = {
+        "evidence": "Specializes in analyzing incidents, edge telemetry, collision data, or harsh braking.",
+        "safety": "Specializes in handling driver distraction, speeding, or immediate unsafe driving behaviors.",
+        "compliance": "Specializes in driver permits, certification status, training workflows, and RAG policy lookups.",
+        "route_optimization": "Specializes in route deviations, route performance, detour analytics, or scheduling.",
+        "fleet_monitoring": "Specializes in active fleet GPS tracking, student boarding/deboarding, bus capacity, and occupancy.",
+        "executive": "Specializes in operational KPIs, high-level analytics, board summaries, and overall metrics."
+    }
+
+    # Dynamically build capabilities list for the LLM
+    agent_capabilities_str = "\n".join([f"- '{name}': {desc}" for name, desc in AGENT_REGISTRY.items()])
+    agent_names = ", ".join(AGENT_REGISTRY.keys())
+
     # LLM Autonomous routing classification
     routing_prompt = (
         f"Classify the following incoming system event or payload: '{event_payload}'.\n"
-        f"Return exactly one word matching the next agent name:\n"
-        f"- 'evidence': for analyzing an incident, edge telemetry, collision, or harsh braking.\n"
-        f"- 'safety': for driver distraction, speeding, or immediate unsafe driving behavior.\n"
-        f"- 'compliance': for driver permits, certification status, training workflows, and RAG policy lookups.\n"
-        f"- 'route_optimization': for route deviations, route performance, detour analytics, or scheduling.\n"
-        f"- 'fleet_monitoring': for active fleet GPS, student boarding/deboarding tracking, bus capacity, and occupancy.\n"
-        f"- 'executive': for summaries, analytics, overall metrics, or operational KPIs.\n"
-        f"Next step (exactly one word: evidence, safety, compliance, route_optimization, fleet_monitoring, executive):"
+        f"Return exactly one word matching the next agent name based on their registered capabilities:\n"
+        f"{agent_capabilities_str}\n"
+        f"Next step (exactly one word from this list: {agent_names}):"
     )
     llm_decision = call_gemini(
         prompt=routing_prompt,
@@ -34,7 +43,7 @@ def supervisor_agent(state: AgentState) -> dict:
     )
     cleaned = llm_decision.strip().lower() if llm_decision else ""
     
-    if cleaned in ["evidence", "safety", "compliance", "route_optimization", "fleet_monitoring", "executive"]:
+    if cleaned in AGENT_REGISTRY:
         next_step = cleaned
     else:
         # Fallback logic mapped to PRD requirements if LLM rate limits
