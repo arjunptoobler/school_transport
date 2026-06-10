@@ -17,6 +17,35 @@ def _write_audit_log(conn, incident_id: str, agent: str, action: str, detail: st
     )
 
 
+def batch_write_history_to_audit_log(incident_id: str, history: list):
+    """Write the entire scenario history to the audit log for a newly created incident."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        for idx, step in enumerate(history):
+            log_id = f"LOG-{uuid.uuid4().hex[:8].upper()}"
+            # Add a slight delay to timestamp to keep chronological order if they were fast
+            dt = datetime.datetime.now() - datetime.timedelta(seconds=len(history) - idx)
+            agent = step.get("agent", "Unknown Agent")
+            
+            # Extract action text or use tool name
+            action = step.get("action")
+            if not action or action == "None":
+                action = "Analyzed Context"
+                
+            detail = step.get("tool", "")
+            if not detail:
+                detail = step.get("text", "")[:100]
+                
+            cursor.execute(
+                "INSERT INTO incident_audit_log (log_id, incident_id, agent, action, detail, timestamp) VALUES (?,?,?,?,?,?)",
+                (log_id, incident_id, agent, action, detail, dt.isoformat()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @mcp_registry.register_tool(name="mcp_create_incident")
 def create_incident(severity: str, type: str, driver_id: str, vehicle_id: str, description: str, agent: str = "Incident Agent"):
     """File a compliance or safety incident in the master database and write the initial audit log entry."""

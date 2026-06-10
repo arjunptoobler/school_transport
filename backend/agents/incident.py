@@ -1,5 +1,6 @@
 from .state import AgentState
 from ..mcp.base import mcp_registry
+from ..mcp.incident import batch_write_history_to_audit_log
 from ..database.connection import get_db_connection
 from .parser import extract_entities
 from .llm import call_gemini
@@ -82,7 +83,11 @@ def incident_agent(state: AgentState) -> dict:
                     
                     res = mcp_registry.call_tool("mcp_create_incident", severity=sev, type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=plan.strip())
                     if res and "incident_id" in res:
-                        action_taken = f" (Action: Created {res['incident_id']} in DB)"
+                        inc_id = res['incident_id']
+                        action_taken = f" (Action: Created {inc_id} in DB)"
+                        batch_write_history_to_audit_log(inc_id, history)
+                        # Immediately update to Resolved as pipeline handled mitigation
+                        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Autonomous mitigation plan executed.")
             
             text = f"📝 [Incident Plan] {plan.strip()}{action_taken}"
         except Exception as e:
