@@ -188,41 +188,37 @@ async function selectIncident(inc) {
         <div><strong>Status:</strong> ${inc.status || 'Detected'}</div>
       </div>
       ${evidenceHtml}
-      <div class="ai-thinking" style="margin-top:1rem"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Running multi-agent analysis via LangGraph...</div>
+      <div class="ai-thinking" style="margin-top:1rem"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Fetching incident audit trail...</div>
     </div>`;
 
-  // Call real agent API with incident context
-  const query = `Analyze incident ${inc.incident_id}: ${inc.type} involving driver ${inc.driver_id} on vehicle ${inc.vehicle_id}. ${inc.description}`;
-  const res = await apiFetch('/agents/run_scenario', {
-    method: 'POST',
-    body: JSON.stringify({ scenario_id: 99, event_payload: query })
-  });
+  // Fetch audit log
+  const res = await apiFetch(`/incidents/${inc.incident_id}/audit`);
+  const logs = (res && res.success && res.audit_log) ? res.audit_log : [];
 
-  // Reload incident database to capture the agent's resolution update
-  await loadIncidentsData();
-  const updatedInc = activeIncidents.find(i => i.incident_id === inc.incident_id) || inc;
-
-  const messages = (res && res.success) ? res.history : [{ agent: 'Supervisor Agent', text: 'Analysis pipeline coordinated.', tool: 'LangGraph' }];
   let flowHtml = '';
-  messages.forEach((msg, idx) => {
-    const cls = idx === messages.length - 1 ? 'fs-active' : 'fs-done';
-    flowHtml += `<div class="flow-step ${cls}"><span class="fs-icon">${getAgentIcon(msg.agent)}</span><div><strong>${msg.agent}</strong><div style="font-size:.75rem;color:var(--text2)">${msg.text}</div><div style="font-size:.65rem;color:var(--accent1);margin-top:2px">🛠️ ${msg.tool}</div></div></div>`;
-  });
+  if (logs.length === 0) {
+    flowHtml = `<div style="font-size:.8rem;color:var(--text2);padding:1rem;">No agent actions recorded for this incident yet.</div>`;
+  } else {
+    logs.forEach((log, idx) => {
+      const cls = idx === logs.length - 1 ? 'fs-active' : 'fs-done';
+      flowHtml += `<div class="flow-step ${cls}"><span class="fs-icon">${getAgentIcon(log.agent)}</span><div><strong>${log.agent}</strong><div style="font-size:.75rem;color:var(--text2)">${log.action}</div><div style="font-size:.65rem;color:var(--accent1);margin-top:2px">🛠️ ${log.detail}</div><div style="font-size:.6rem;color:var(--text3);margin-top:4px">${log.timestamp.replace('T', ' ').substring(0, 19)}</div></div></div>`;
+    });
+  }
 
   detail.innerHTML = `
     <div class="card-header">
-      <span class="card-title">🚨 ${updatedInc.type} — ${updatedInc.incident_id}</span>
-      <span class="sev-badge sev-${updatedInc.severity}">${updatedInc.severity.toUpperCase()}</span>
+      <span class="card-title">🚨 ${inc.type} — ${inc.incident_id}</span>
+      <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
     </div>
     <div class="incident-detail-content">
-      <p style="color:var(--text2);margin-bottom:.5rem">${updatedInc.description}</p>
+      <p style="color:var(--text2);margin-bottom:.5rem">${inc.description}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
-        <div><strong>Driver:</strong> ${updatedInc.driver_id}</div>
-        <div><strong>Vehicle:</strong> ${updatedInc.vehicle_id}</div>
-        <div><strong>Status:</strong> <span class="status-pill ${updatedInc.status === 'Resolved' ? 'vs-ok' : 'vs-bad'}">${updatedInc.status || 'Detected'}</span></div>
+        <div><strong>Driver:</strong> ${inc.driver_id}</div>
+        <div><strong>Vehicle:</strong> ${inc.vehicle_id}</div>
+        <div><strong>Status:</strong> <span class="status-pill ${inc.status === 'Resolved' ? 'vs-ok' : 'vs-bad'}">${inc.status || 'Detected'}</span></div>
       </div>
       ${evidenceHtml}
-      <strong style="font-size:.8rem;display:block;margin-top:.5rem">🤖 Live Multi-Agent Analysis (${messages.length} steps):</strong>
+      <strong style="font-size:.8rem;display:block;margin-top:.5rem">🤖 Immutable Agent Audit Trail (${logs.length} actions):</strong>
       <div class="agent-flow-viz">${flowHtml}</div>
     </div>`;
 }
