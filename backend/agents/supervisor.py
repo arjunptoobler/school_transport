@@ -6,15 +6,7 @@ def supervisor_agent(state: AgentState) -> dict:
     event_payload = state["event_payload"]
     scenario = state["scenario"]
 
-    # Populate demo queries if missing, but let the LLM dynamically decide the routing!
-    if scenario == 0 and not event_payload:
-        event_payload = "System Event: Driver using mobile device via cabin camera on Bus AU-BUS-105."
-    elif scenario == 1 and not event_payload:
-        event_payload = "Webhook Alert: Guardian not present at stop #4 for Bus AU-BUS-102. Student retained."
-    elif scenario == 2 and not event_payload:
-        event_payload = "Pre-trip compliance check failed. Braking pressure below ADEK safety threshold for Bus AU-BUS-104."
-    elif scenario == 3 and not event_payload:
-        event_payload = "System trigger: Generate Executive C-Level Summary of platform metrics."
+    # In a fully event-driven architecture, the payload should ALWAYS come from the API request
 
     # Define A2A Agent Capabilities Registry
     AGENT_REGISTRY = {

@@ -498,10 +498,17 @@ async function runScenario(num) {
   
   resetDiagramHighlights();
   
+  const demoPayloads = [
+    "System Event: Driver using mobile device via cabin camera on Bus AU-BUS-105.",
+    "Webhook Alert: Guardian not present at stop #4 for Bus AU-BUS-102. Student retained.",
+    "Pre-trip compliance check failed. Braking pressure below ADEK safety threshold for Bus AU-BUS-104.",
+    "System trigger: Generate Executive C-Level Summary of platform metrics."
+  ];
+
   // Call API Endpoint
   const res = await apiFetch("/agents/run_scenario", {
     method: "POST",
-    body: JSON.stringify({ scenario_id: num })
+    body: JSON.stringify({ scenario_id: num, event_payload: demoPayloads[num] || "" })
   });
   
   const messages = (res && res.success) ? res.history : getFallbackHistory(num);
