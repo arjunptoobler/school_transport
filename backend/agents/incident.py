@@ -63,7 +63,13 @@ def incident_agent(state: AgentState) -> dict:
             text = "📝 [Incident Plan] Created INC-2026-903 for vehicle compliance failure. Grounding bus AU-BUS-104."
             mcp_registry.call_tool("mcp_create_incident", severity="high", type="Inspection Failure", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
         else:
-            text = f"📝 [Incident Plan] Autonomous incident resolution logged and registered."
+            text = f"📝 [Incident Plan] Automated safety incident recorded due to edge trigger."
+            res = mcp_registry.call_tool("mcp_create_incident", severity="med", type="General Edge Alert", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            if res and "incident_id" in res:
+                inc_id = res['incident_id']
+                action_taken = f" (Action: Created {inc_id} in DB)"
+                batch_write_history_to_audit_log(inc_id, history)
+                mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
     else:
         try:
             plan = re.search(r"PLAN:\s*(.*)", llm_msg, re.IGNORECASE).group(1).split("ACTION:")[0]

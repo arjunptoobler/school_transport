@@ -31,8 +31,23 @@ def supervisor_agent(state: AgentState) -> dict:
     )
     cleaned = llm_decision.strip().lower() if llm_decision else ""
     
-    # We explicitly trust the LLM routing decision now. Default to executive if unrecognized.
-    next_step = cleaned if cleaned in AGENT_REGISTRY else "executive"
+    # If the LLM returned a valid agent, use it. Otherwise, use a smart keyword fallback (for rate limits).
+    if cleaned in AGENT_REGISTRY:
+        next_step = cleaned
+    else:
+        ep = event_payload.lower()
+        if "seatbelt" in ep or "distraction" in ep or "speeding" in ep or "safety" in ep:
+            next_step = "safety"
+        elif "collision" in ep or "telemetry" in ep or "brake" in ep:
+            next_step = "evidence"
+        elif "permit" in ep or "compliance" in ep or "inspection" in ep:
+            next_step = "compliance"
+        elif "route" in ep or "detour" in ep or "schedule" in ep:
+            next_step = "route_optimization"
+        elif "guardian" in ep or "capacity" in ep or "boarding" in ep:
+            next_step = "fleet_monitoring"
+        else:
+            next_step = "executive"
 
     # To eliminate unnecessary LLM latency (saving 1-2 seconds), we generate the coordination message deterministically
     msg = f"🧠 Analyzed event payload and dynamically routed workflow to '{next_step}' specialist agent."
