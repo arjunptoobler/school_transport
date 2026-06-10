@@ -34,13 +34,8 @@ def supervisor_agent(state: AgentState) -> dict:
     # We explicitly trust the LLM routing decision now. Default to executive if unrecognized.
     next_step = cleaned if cleaned in AGENT_REGISTRY else "executive"
 
-    # Dynamic LLM instruction coordination text
-    llm_msg = call_gemini(
-        prompt=f"An incident event occurred at timestamp {state.get('event_timestamp', 'UNKNOWN')} with payload '{event_payload}'. Act as the Supervisor and output a 1-sentence message coordinating this pipeline. Next agent is '{next_step}'. Keep it professional.",
-        system_instruction="You are the Supervisor Agent for the ADEK School Transportation AI Compliance Platform.",
-    )
-
-    msg = llm_msg or "🧠 Supervisor coordinated execution pipeline."
+    # To eliminate unnecessary LLM latency (saving 1-2 seconds), we generate the coordination message deterministically
+    msg = f"🧠 Analyzed event payload and dynamically routed workflow to '{next_step}' specialist agent."
 
     # Utilizing LangGraph operator.add reducer by returning only the appended history list item
     return {
