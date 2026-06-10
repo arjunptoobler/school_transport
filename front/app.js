@@ -67,11 +67,7 @@ const MOCK_VEHICLES = [
   { vehicle_id: 'AU-BUS-105', license_plate: 'AD 90912', age: 9, gps_status: 'online', inspection_status: 'valid' }
 ];
 
-const MOCK_INCIDENTS = [
-  { incident_id: 'INC-2026-882', severity: 'high', type: 'Driver Distraction', driver_id: 'DRV-4412', vehicle_id: 'AU-BUS-105', timestamp: '10 mins ago', description: 'Safety Agent detected driver using mobile device via cabin camera.' },
-  { incident_id: 'INC-2026-881', severity: 'med', type: 'Missing Guardian', driver_id: 'DRV-2089', vehicle_id: 'AU-BUS-102', timestamp: '25 mins ago', description: 'No guardian present at Handover Point 4. Student retained on vehicle.' },
-  { incident_id: 'INC-2026-880', severity: 'med', type: 'Inspection Failure', driver_id: 'DRV-3041', vehicle_id: 'AU-BUS-104', timestamp: '1 hour ago', description: 'Pre-trip compliance check failed. Braking pressure below ADEK safety threshold.' }
-];
+const MOCK_INCIDENTS = [];
 
 // Load driver/vehicle tables from API
 async function loadFleetData() {
@@ -459,12 +455,7 @@ setInterval(() => {
 }, 2000);
 
 // --- ALERTS AND FEED ---
-const LIVE_ALERTS = [
-  { type: 'info', text: 'Route AU-402 started successfully.' },
-  { type: 'ok', text: 'Driver Zayed Al Mansoori completed pre-trip verification.' },
-  { type: 'warn', text: 'Bus AU-BUS-104 report: Air conditioning output degrading.' },
-  { type: 'crit', text: 'Bus AU-BUS-105: Cabin camera safety flag triggered.' }
-];
+const LIVE_ALERTS = [];
 
 function addAlertItem(alert) {
   const feed = document.getElementById('alert-feed');
@@ -725,7 +716,7 @@ async function loadKPIs() {
   if (!data) return;
   const el = (id) => document.getElementById(id);
 
-  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = '2'; // Focused on human review
+  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = activeIncidents.length.toString();
   const incSub = document.querySelector('#kpi-incidents .kpi-sub');
   if (incSub) incSub.textContent = `Escalated by Supervisor Agent`;
   const incBar = document.querySelector('#kpi-incidents .kpi-fill');
