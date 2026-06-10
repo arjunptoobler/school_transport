@@ -13,6 +13,7 @@ class IncidentCreate(BaseModel):
     driver_id: str
     vehicle_id: str
     description: str
+    evidence_url: str = "None"
 
 
 @router.get("/")
@@ -38,8 +39,8 @@ def simulate_incident(req: IncidentCreate):
 
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?)",
-            (inc_id, req.severity, req.type, req.driver_id, req.vehicle_id, timestamp, req.description, "Detected"),
+            "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?)",
+            (inc_id, req.severity, req.type, req.driver_id, req.vehicle_id, timestamp, req.description, "Detected", req.evidence_url),
         )
         conn.commit()
 
@@ -54,6 +55,7 @@ def simulate_incident(req: IncidentCreate):
                 "timestamp": timestamp,
                 "description": req.description,
                 "status": "Detected",
+                "evidence_url": req.evidence_url,
             },
         }
     except Exception as e:

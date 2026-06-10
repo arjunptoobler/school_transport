@@ -4,7 +4,8 @@ from typing import Annotated, Any, Dict, List, TypedDict
 
 class AgentState(TypedDict):
     scenario: int
-    user_query: str
+    event_payload: str
+    event_timestamp: str
     current_agent: str
     # Annotated with operator.add forces LangGraph to automatically append new items
     # rather than requiring manual copying and merging in every node.

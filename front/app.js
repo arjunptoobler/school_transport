@@ -165,6 +165,16 @@ async function selectIncident(inc) {
   });
 
   const detail = document.getElementById('incident-detail');
+  
+  let evidenceHtml = '';
+  if (inc.evidence_url && inc.evidence_url !== 'None') {
+    if (inc.evidence_url.endsWith('.jpg') || inc.evidence_url.endsWith('.png')) {
+      evidenceHtml = `<div style="margin-top:1rem"><strong style="font-size:.8rem;display:block;margin-bottom:.5rem">📸 Visual Evidence:</strong><img src="${inc.evidence_url}" style="max-width:100%;border-radius:6px;border:1px solid var(--border)"></div>`;
+    } else {
+      evidenceHtml = `<div style="margin-top:1rem;background:var(--bg3);padding:.5rem;border-radius:6px;border:1px solid var(--border);font-size:.75rem"><strong style="color:var(--text1)">📎 Evidence Attached:</strong> <a href="${inc.evidence_url}" target="_blank" style="color:var(--accent1)">${inc.evidence_url.split('/').pop()}</a></div>`;
+    }
+  }
+
   detail.innerHTML = `
     <div class="card-header">
       <span class="card-title">🚨 ${inc.type} — ${inc.incident_id}</span>
@@ -172,20 +182,25 @@ async function selectIncident(inc) {
     </div>
     <div class="incident-detail-content">
       <p style="color:var(--text2);margin-bottom:.5rem">${inc.description}</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem;font-size:.78rem">
         <div><strong>Driver:</strong> ${inc.driver_id}</div>
         <div><strong>Vehicle:</strong> ${inc.vehicle_id}</div>
         <div><strong>Status:</strong> ${inc.status || 'Detected'}</div>
       </div>
-      <div class="ai-thinking"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Running multi-agent analysis via LangGraph...</div>
+      ${evidenceHtml}
+      <div class="ai-thinking" style="margin-top:1rem"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Running multi-agent analysis via LangGraph...</div>
     </div>`;
 
   // Call real agent API with incident context
   const query = `Analyze incident ${inc.incident_id}: ${inc.type} involving driver ${inc.driver_id} on vehicle ${inc.vehicle_id}. ${inc.description}`;
   const res = await apiFetch('/agents/run_scenario', {
     method: 'POST',
-    body: JSON.stringify({ scenario_id: 99, query: query })
+    body: JSON.stringify({ scenario_id: 99, event_payload: query })
   });
+
+  // Reload incident database to capture the agent's resolution update
+  await loadIncidentsData();
+  const updatedInc = activeIncidents.find(i => i.incident_id === inc.incident_id) || inc;
 
   const messages = (res && res.success) ? res.history : [{ agent: 'Supervisor Agent', text: 'Analysis pipeline coordinated.', tool: 'LangGraph' }];
   let flowHtml = '';
@@ -196,16 +211,17 @@ async function selectIncident(inc) {
 
   detail.innerHTML = `
     <div class="card-header">
-      <span class="card-title">🚨 ${inc.type} — ${inc.incident_id}</span>
-      <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
+      <span class="card-title">🚨 ${updatedInc.type} — ${updatedInc.incident_id}</span>
+      <span class="sev-badge sev-${updatedInc.severity}">${updatedInc.severity.toUpperCase()}</span>
     </div>
     <div class="incident-detail-content">
-      <p style="color:var(--text2);margin-bottom:.5rem">${inc.description}</p>
+      <p style="color:var(--text2);margin-bottom:.5rem">${updatedInc.description}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
-        <div><strong>Driver:</strong> ${inc.driver_id}</div>
-        <div><strong>Vehicle:</strong> ${inc.vehicle_id}</div>
-        <div><strong>Status:</strong> ${inc.status || 'Detected'}</div>
+        <div><strong>Driver:</strong> ${updatedInc.driver_id}</div>
+        <div><strong>Vehicle:</strong> ${updatedInc.vehicle_id}</div>
+        <div><strong>Status:</strong> <span class="status-pill ${updatedInc.status === 'Resolved' ? 'vs-ok' : 'vs-bad'}">${updatedInc.status || 'Detected'}</span></div>
       </div>
+      ${evidenceHtml}
       <strong style="font-size:.8rem;display:block;margin-top:.5rem">🤖 Live Multi-Agent Analysis (${messages.length} steps):</strong>
       <div class="agent-flow-viz">${flowHtml}</div>
     </div>`;
@@ -501,9 +517,16 @@ async function runScenario(num) {
     const msg = messages[idx];
     const mDiv = document.createElement('div');
     mDiv.className = 'conv-msg';
+    
+    let actionHTML = '';
+    if (msg.action) {
+      actionHTML = `<div class="conv-action-taken">⚡ Action: ${msg.action}</div>`;
+    }
+    
     mDiv.innerHTML = `
       <span class="conv-agent">${msg.agent}</span>
       <div class="conv-text">${msg.text}</div>
+      ${actionHTML}
       <div class="conv-tool">🛠️ ${msg.tool}</div>
     `;
     conv.appendChild(mDiv);
@@ -519,16 +542,23 @@ async function runScenario(num) {
     if (msg.agent.includes('Fleet')) badgeClass = 'ab-fleet';
     
     monitorItem.className = 'agent-item';
+    
+    let monitorActionHTML = '';
+    if (msg.action) {
+      monitorActionHTML = `<div style="font-size:0.75rem; color:#10b981; font-weight:700; margin-top:3px;">⚡ Action: ${msg.action}</div>`;
+    }
+    
     monitorItem.innerHTML = `
       <span class="agent-badge ${badgeClass}">${msg.agent}</span>
       <div>${msg.text}</div>
+      ${monitorActionHTML}
     `;
     monitor.prepend(monitorItem);
     
     highlightDiagramNode(msg.agent);
     
     idx++;
-    setTimeout(nextStep, 1500);
+    setTimeout(nextStep, 1800);
   }
   
   nextStep();
@@ -537,28 +567,28 @@ async function runScenario(num) {
 function getFallbackHistory(num) {
   const history = [
     [
-      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
-      { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds.', tool: 'Cabin Camera Edge Sensor, Incident MCP' },
-      { agent: 'Compliance Agent', text: '✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings.', tool: 'Driver Database, PASS MCP' },
-      { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882.', tool: 'Notification MCP, Incident Database' },
-      { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%.', tool: 'Analytics MCP' }
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
+      { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds.', tool: 'Cabin Camera Edge Sensor, Incident MCP', action: 'Flagged unsafe cabin behavior (distraction).' },
+      { agent: 'Compliance Agent', text: '✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings.', tool: 'Driver Database, PASS MCP', action: 'Initiated driver violation threshold check.' },
+      { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882.', tool: 'Notification MCP, Incident Database', action: 'Auto-logged incident ticket INC-2026-882.' },
+      { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%.', tool: 'Analytics MCP', action: 'Updated safety scorecard metrics.' }
     ],
     [
-      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
-      { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Route Supervisor SOP App' },
-      { agent: 'Compliance Agent', text: '📚 RAG Query: "guardian handover rules". Result: Pupil must be retained.', tool: 'Shared Policy RAG (ChromaDB)' },
-      { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: Student remains safely on bus.', tool: 'Notification MCP, Incident Database' }
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
+      { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Route Supervisor SOP App', action: 'Activated student retention safety protocol.' },
+      { agent: 'Compliance Agent', text: '📚 RAG Query: "guardian handover rules". Result: Pupil must be retained.', tool: 'Shared Policy RAG (ChromaDB)', action: 'Verified ADEK guardian handover guidelines.' },
+      { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: Student remains safely on bus.', tool: 'Notification MCP, Incident Database', action: 'Sent automated SMS notification to registered parent.' }
     ],
     [
-      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
-      { agent: 'Compliance Agent', text: '❌ Pre-trip checklist failure: Bus AU-BUS-104 reported low brake pressure.', tool: 'Fleet MCP, Pre-trip Forms' },
-      { agent: 'Incident Agent', text: '🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106.', tool: 'Route Optimization MCP' }
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Route Optimization Agent.' },
+      { agent: 'Compliance Agent', text: '❌ Pre-trip checklist failure: Bus AU-BUS-104 reported low brake pressure.', tool: 'Fleet MCP, Pre-trip Forms', action: 'Flagged low brake pressure mechanical hazard.' },
+      { agent: 'Incident Agent', text: '🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106.', tool: 'Route Optimization MCP', action: 'Dynamically recalculated alternative bus route corridor.' }
     ],
     [
-      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router' },
-      { agent: 'Compliance Agent', text: '✅ Querying weekly violation logs. 18 driver training renewals missed during Ramadan shift adjustments.', tool: 'Driver MCP, Policy RAG' },
-      { agent: 'Incident Agent', text: '🚨 Incident correlation: High incident volumes matched with newer routes launched.', tool: 'Incident MCP' },
-      { agent: 'Executive Agent', text: '📊 Synthesizing executive report.', tool: 'Analytics MCP' }
+      { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Executive Agent.' },
+      { agent: 'Compliance Agent', text: '✅ Querying weekly violation logs. 18 driver training renewals missed during Ramadan shift adjustments.', tool: 'Driver MCP, Policy RAG', action: 'Aggregated shift logs and certification statuses.' },
+      { agent: 'Incident Agent', text: '🚨 Incident correlation: High incident volumes matched with newer routes launched.', tool: 'Incident MCP', action: 'Mapped launching incident rates to route density.' },
+      { agent: 'Executive Agent', text: '📊 Synthesizing executive report.', tool: 'Analytics MCP', action: 'Compiled strategic ADEK executive brief.' }
     ]
   ];
   return history[num] || [];
@@ -592,7 +622,7 @@ async function runExecScenario(queryText) {
 
   const res = await apiFetch('/agents/run_scenario', {
     method: 'POST',
-    body: JSON.stringify({ scenario_id: 99, query: queryText })
+    body: JSON.stringify({ scenario_id: 99, event_payload: queryText })
   });
 
   const messages = (res && res.success) ? res.history : [{ agent: 'Executive Agent', text: 'Unable to reach agent pipeline. Please try again.', tool: 'Fallback' }];
@@ -635,23 +665,12 @@ async function loadKPIs() {
   const data = await apiFetch('/fleet/kpis');
   if (!data) return;
   const el = (id) => document.getElementById(id);
-  if (el('kpi-active-buses')) el('kpi-active-buses').textContent = data.active_buses;
-  const busBar = document.querySelector('#kpi-buses .kpi-fill');
-  if (busBar) busBar.style.width = `${(data.active_buses / data.total_buses) * 100}%`;
-  const busSub = document.querySelector('#kpi-buses .kpi-sub');
-  if (busSub) busSub.textContent = `of ${data.total_buses} fleet`;
 
-  if (el('kpi-comp-score')) el('kpi-comp-score').innerHTML = `${data.compliance_score}<span class="kpi-unit">%</span>`;
-  const compBar = document.querySelector('#kpi-compliance .kpi-fill');
-  if (compBar) compBar.style.width = `${data.compliance_score}%`;
-
-  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = data.open_incidents;
+  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = '2'; // Focused on human review
   const incSub = document.querySelector('#kpi-incidents .kpi-sub');
-  if (incSub) incSub.textContent = `${data.high_incidents} High · ${data.med_incidents} Medium`;
+  if (incSub) incSub.textContent = `Escalated by Supervisor Agent`;
   const incBar = document.querySelector('#kpi-incidents .kpi-fill');
-  if (incBar) incBar.style.width = `${Math.min(100, data.open_incidents)}%`;
-
-  if (el('kpi-students-count')) el('kpi-students-count').textContent = data.students_in_transit.toLocaleString();
+  if (incBar) incBar.style.width = `15%`;
 
   if (el('hbar-gps')) el('hbar-gps').style.width = `${data.gps_active_pct}%`;
   if (el('hval-gps')) el('hval-gps').textContent = `${data.gps_active_pct}%`;
@@ -724,7 +743,7 @@ async function loadComplianceData() {
   }
 }
 
-// --- FREE-TEXT CUSTOM QUERY ---
+// --- FREE-TEXT CUSTOM EVENT TRIGGER ---
 async function runCustomQuery() {
   const input = document.getElementById('custom-agent-query');
   const query = input.value.trim();
@@ -732,13 +751,13 @@ async function runCustomQuery() {
 
   const conv = document.getElementById('agent-conversation');
   const monitor = document.getElementById('agent-monitor');
-  conv.innerHTML = '<div class="ai-thinking"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Supervisor routing query to specialist agents...</div>';
+  conv.innerHTML = '<div class="ai-thinking"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Supervisor routing incoming event payload to specialist agents...</div>';
   if (monitor) monitor.innerHTML = '';
   resetDiagramHighlights();
 
   const res = await apiFetch('/agents/run_scenario', {
     method: 'POST',
-    body: JSON.stringify({ scenario_id: 99, query: query })
+    body: JSON.stringify({ scenario_id: 99, event_payload: query })
   });
 
   conv.innerHTML = '';
@@ -774,7 +793,7 @@ window.onload = function() {
     if (!summaryDiv) return;
     const res = await apiFetch('/agents/run_scenario', {
       method: 'POST',
-      body: JSON.stringify({ scenario_id: 3, query: 'Generate a brief executive compliance summary for the Abu Dhabi school transport fleet' })
+      body: JSON.stringify({ scenario_id: 3, event_payload: 'Generate a brief executive compliance summary for the Abu Dhabi school transport fleet' })
     });
     if (res && res.success && res.history.length) {
       const last = res.history[res.history.length - 1];

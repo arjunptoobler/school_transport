@@ -49,7 +49,8 @@ def seed_database():
         vehicle_id TEXT,
         timestamp TEXT,
         description TEXT,
-        status TEXT
+        status TEXT,
+        evidence_url TEXT
     )
     """)
 
@@ -179,9 +180,19 @@ def seed_database():
         veh_id = f"AU-BUS-{100 + random.randint(1, 250)}"
         timestamp = f"2026-06-08T{random.randint(7, 16):02d}:{random.randint(0, 59):02d}:00"
         status = random.choice(statuses)
-        incidents.append((inc_id, severity, inc_type, drv_id, veh_id, timestamp, desc, status))
         
-    cursor.executemany("INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?)", incidents)
+        evidence_urls = [
+            "https://storage.adek.gov.ae/evidence/collision_ch23.mp4",
+            "https://storage.adek.gov.ae/evidence/distracted_drv_99.jpg",
+            "https://storage.adek.gov.ae/evidence/telemetry_hb_02.csv",
+            "https://storage.adek.gov.ae/evidence/handover_missing_std44.jpg",
+            "None"
+        ]
+        evidence_url = random.choice(evidence_urls)
+        
+        incidents.append((inc_id, severity, inc_type, drv_id, veh_id, timestamp, desc, status, evidence_url))
+        
+    cursor.executemany("INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?)", incidents)
 
     # Seed Student Boardings (RFID card swipes)
     boardings = []

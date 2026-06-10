@@ -2,46 +2,60 @@ from .state import AgentState
 from ..mcp.base import mcp_registry
 from .parser import extract_entities
 from .llm import call_gemini
+import re
 
 def fleet_monitoring_agent(state: AgentState) -> dict:
-    """Agent specialized in monitoring fleet health, GPS telemetry signals, and capacity utilization ratios."""
+    """Agent specialized in Real-Time School Transportation Monitoring (PRD 3.1)."""
+    query = state["event_payload"]
     scenario = state["scenario"]
+    history = state.get("conversation_history", [])
+
     entities = extract_entities(state)
     vehicle_id = entities["vehicle_id"]
 
-    fallback_msg = ""
-    tool = "Fleet GPS Monitor & Telematics"
-    next_step = "safety"
-    prompt_desc = ""
-
     # Fetch vehicle record from MCP
-    veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
-    plate = veh.get("license_plate", "Unknown")
-    gps = veh.get("gps_status", "online")
-    capacity = veh.get("capacity", 40)
-    occupancy = veh.get("current_occupancy", 20)
-    utilization = (occupancy / capacity) * 100 if capacity else 0
+    veh = {}
+    if vehicle_id and vehicle_id != "Unknown":
+        res = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
+        if res and "error" not in res:
+            veh = res
 
-    if gps == "offline":
-        fallback_msg = f"📡 Fleet Monitoring: Detected telemetry outage on Bus {vehicle_id} ({plate}). GPS signal is offline. Triggering automated fleet backup protocols."
-        prompt_desc = f"Bus {vehicle_id} GPS telemetry signal is offline."
-        next_step = "safety"
-    elif utilization > 90.0:
-        fallback_msg = f"📡 Fleet Monitoring: Critical capacity load on Bus {vehicle_id} ({plate}). Occupancy at {occupancy}/{capacity} ({utilization:.1f}% utilization). Exceeds safety guidelines."
-        prompt_desc = f"Bus {vehicle_id} capacity load is high ({utilization:.1f}% utilization)."
-        next_step = "safety"
-    else:
-        fallback_msg = f"📡 Fleet Monitoring: Bus {vehicle_id} ({plate}) is online. Active occupancy: {occupancy}/{capacity} ({utilization:.1f}% utilization). Route progression normal."
-        prompt_desc = f"Bus {vehicle_id} is online and operational. Capacity load is {utilization:.1f}%."
-        next_step = "executive"
+    context_str = "\n".join([f"- {h['agent']}: {h['text']}" for h in history])
 
-    llm_msg = call_gemini(
-        prompt=f"Formulate a fleet telemetry status report. Context: {prompt_desc}. Keep it concise and professional (1-2 sentences). Do not include greetings.",
-        system_instruction="You are the Fleet Monitoring Agent for the ADEK School Transportation Safety Platform.",
+    prompt = (
+        f"You are the Fleet Monitoring Agent for the ADEK Platform.\n"
+        f"Analyze the following event for Real-Time School Transportation Monitoring:\n"
+        f"Query/Event: {query}\n"
+        f"Vehicle Context (GPS, Capacity, Occupancy): {veh}\n"
+        f"Agent Analysis Context:\n{context_str}\n\n"
+        f"Task:\n"
+        f"1. Evaluate the GPS signal status and vehicle occupancy/capacity.\n"
+        f"2. Suggest immediate fleet operations actions (e.g., alert dispatch, approve boarding, reroute).\n"
+        f"3. Decide the next routing step: 'route_optimization' (if a reroute or spare is needed) or 'safety' (if overload/offline is critical).\n"
+        f"Output format exactly:\n"
+        f"ASSESSMENT: <your 1-2 sentence fleet status assessment>\n"
+        f"ROUTE: <route_optimization or safety>"
     )
 
-    msg = llm_msg or fallback_msg
+    llm_msg = call_gemini(
+        prompt=prompt,
+        system_instruction="You are an expert Fleet Operations Manager monitoring real-time GPS and student boarding telemetry.",
+    )
+
+    if not llm_msg:
+        text = f"📡 Fleet Monitoring: GPS and capacity constraints evaluated. Moving to route optimization."
+        next_step = "route_optimization"
+    else:
+        try:
+            assessment = re.search(r"ASSESSMENT:\s*(.*)", llm_msg, re.IGNORECASE).group(1)
+            route_part = re.search(r"ROUTE:\s*(.*)", llm_msg, re.IGNORECASE).group(1).strip().lower()
+            text = f"📡 [Fleet Analytics] {assessment}"
+            next_step = route_part if route_part in ["route_optimization", "safety"] else "safety"
+        except:
+            text = f"📡 [Fleet Analytics] {llm_msg}"
+            next_step = "safety"
+
     return {
-        "conversation_history": [{"agent": "Fleet Monitoring Agent", "text": msg, "tool": tool}],
+        "conversation_history": [{"agent": "Fleet Monitoring Agent", "text": text, "tool": "Fleet GPS & Capacity MCP", "action": "Evaluated GPS signal and passenger utilization capacity"}],
         "next_step": next_step
     }

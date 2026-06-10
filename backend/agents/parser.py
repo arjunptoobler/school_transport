@@ -7,7 +7,7 @@ def extract_entities(state: dict) -> dict:
 
     Avoids hardcoding IDs and queries inside agent execution nodes.
     """
-    query = state.get("user_query", "") or ""
+    query = state.get("event_payload", "") or ""
     metadata = state.get("metadata", {}) or {}
     scenario = state.get("scenario", -1)
 

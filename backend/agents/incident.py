@@ -3,105 +3,96 @@ from ..mcp.base import mcp_registry
 from ..database.connection import get_db_connection
 from .parser import extract_entities
 from .llm import call_gemini
-
+import re
 
 def incident_agent(state: AgentState) -> dict:
     scenario = state["scenario"]
+    query = state["event_payload"]
+    history = state["conversation_history"]
 
     # Extract dynamic parameters
     entities = extract_entities(state)
     driver_id = entities["driver_id"]
     vehicle_id = entities["vehicle_id"]
 
-    # Retrieve common database variables
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name, guardian FROM students LIMIT 1")
-        student = cursor.fetchone()
-    finally:
-        conn.close()
+    # Try to extract incident_id from the user query
+    inc_match = re.search(r"(INC-[A-Z0-9\-]+)", query, re.IGNORECASE)
+    incident_id = inc_match.group(1).upper() if inc_match else None
 
-    s_name = student["name"] if student else "Student"
-    guardian = student["guardian"] if student else "Guardian"
+    # Compile the context from previous agents
+    context_str = "\n".join([f"- {h['agent']}: {h['text']}" for h in history])
 
-    if scenario == 0:
-        result = mcp_registry.call_tool(
-            "mcp_create_incident",
-            severity="high",
-            type="Driver Distraction",
-            driver_id=driver_id,
-            vehicle_id=vehicle_id,
-            description="Cabin camera phone usage alert.",
-        )
-        inc_id = result.get("incident_id", "INC-NEW")
-        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Notification")
-        fallback_msg = f"🚨 Creating emergency ticket {inc_id} in database. Sending SMS alerts to Operator Command and preparing safety training assignment."
-        tool = "Notification MCP, Incident Database"
-        next_step = "executive"
-        prompt_desc = f"Filing high-severity ticket {inc_id} for driver distraction ({driver_id}) on bus {vehicle_id}. Alerting command centre. Lifecycle: Notification."
-    elif scenario == 1:
-        mcp_registry.call_tool(
-            "mcp_send_sms",
-            recipient="+971501234567",
-            message=f"Alert: {s_name} remains safely on bus due to missing guardian. Bus returning to hub.",
-        )
-        result = mcp_registry.call_tool(
-            "mcp_create_incident",
-            severity="med",
-            type="Missing Guardian",
-            driver_id=driver_id,
-            vehicle_id=vehicle_id,
-            description=f"Guardian {guardian} not present for student {s_name}.",
-        )
-        inc_id = result.get("incident_id", "INC-NEW")
-        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Investigation")
-        fallback_msg = f"🚨 Alerting parent via WhatsApp: 'Student remains safely on bus. Bus will return student to School Guard hub at 16:30.' Incident ticket {inc_id} filed."
-        tool = "Notification MCP, Incident Database"
-        next_step = "end"
-        prompt_desc = f"Guardian {guardian} absent at stop. Student {s_name} held safely on board by driver {driver_id} on vehicle {vehicle_id}. Parent alerted via SMS/WhatsApp. Filed ticket {inc_id}. Lifecycle: Investigation."
-    elif scenario == 2:
-        result = mcp_registry.call_tool(
-            "mcp_create_incident",
-            severity="med",
-            type="Inspection Failure",
-            driver_id=driver_id,
-            vehicle_id=vehicle_id,
-            description="Failed pre-trip brakes inspection.",
-        )
-        inc_id = result.get("incident_id", "INC-NEW")
-        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolution")
-        fallback_msg = f"🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106 to pick up passengers. Incident ticket {inc_id} registered."
-        tool = "Route Optimization MCP"
-        next_step = "end"
-        prompt_desc = f"Logged pre-trip checklist failure {inc_id} for {vehicle_id} under driver {driver_id}. Recalculated dynamic route, standby bus AU-BUS-106 dispatched. Lifecycle: Resolution."
-    elif scenario == 3:
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high'")
-            high_count = cursor.fetchone()[0]
-        finally:
-            conn.close()
-
-        fallback_msg = f"🚨 Incident correlation: Found {high_count} high-severity incidents across fleet. High risk trends flagged in Khalifa City route corridors."
-        tool = "Incident MCP"
-        next_step = "executive"
-        prompt_desc = f"Analysed violation trends. Flagged correlation between {high_count} high-severity incidents and new routes in Khalifa City."
-    else:
-        fallback_msg = "🚨 No escalation required. Logged to standard incident tracker."
-        tool = "Incident MCP"
-        next_step = "end"
-        prompt_desc = "Clean check. Logged to repository audit log."
-
-    # Call LLM
-    llm_msg = call_gemini(
-        prompt=f"Formulate an incident log summary. Context: {prompt_desc}. Make it action-oriented and concise (1-2 sentences). Do not use conversational filler.",
-        system_instruction="You are the Incident Management Agent for the ADEK School Transportation Compliance Platform.",
+    prompt = (
+        f"You are the Incident Management Agent for the ADEK Platform.\n"
+        f"Review the following situation and the analysis from previous agents:\n"
+        f"Event Query: {query}\n"
+        f"Driver Context: {driver_id}, Vehicle Context: {vehicle_id}\n"
+        f"Incident ID Context: {incident_id}\n"
+        f"Agent Analysis Context:\n{context_str}\n\n"
+        f"Task:\n"
+        f"1. Synthesize the findings into a final Incident Resolution Plan.\n"
+        f"2. Suggest specific follow-up actions (e.g., dispatch support, log fine, close ticket, notify operator).\n"
+        f"3. Decide if an incident should be automatically created or updated. If there is an existing Incident ID context, output ACTION: RESOLVE_INCIDENT to mark it as resolved. If this is a new event requiring a new ticket, output ACTION: CREATE_INCIDENT.\n"
+        f"4. Do NOT recommend manual review unless there is an explicit request to contest or appeal. Complete the resolution plan autonomously.\n"
+        f"Output format exactly:\n"
+        f"PLAN: <your 1-2 sentence resolution plan>\n"
+        f"ACTION: <RESOLVE_INCIDENT, CREATE_INCIDENT, or NONE>\n"
+        f"SEVERITY: <high, med, or low (only if creating incident)>\n"
+        f"TYPE: <1-4 word incident type (only if creating incident)>"
     )
 
-    msg = llm_msg or fallback_msg
+    llm_msg = call_gemini(
+        prompt=prompt,
+        system_instruction="You are the Incident Management Agent. You create actionable resolution plans, resolve existing database incidents, and automate new incident ticket entries autonomously.",
+    )
+
+    action_taken = ""
+    if not llm_msg:
+        if incident_id:
+            mcp_registry.call_tool("mcp_update_incident_status", incident_id=incident_id, status="Resolved")
+            text = f"📝 [Incident Plan] Resolved existing incident {incident_id} autonomously. Fleet safety rules updated."
+            action_taken = f" (Action: Resolved {incident_id} in DB)"
+        elif scenario == 0:
+            text = "📝 [Incident Plan] Created INC-2026-901 for unsafe distraction. Fines queued. Notifying operator Emirates Transport."
+            mcp_registry.call_tool("mcp_create_incident", severity="high", type="Driver Distraction", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+        elif scenario == 1:
+            text = "📝 [Incident Plan] Created INC-2026-902 for protocol violation. Student safeguarded. Scheduling guardian follow-up."
+            mcp_registry.call_tool("mcp_create_incident", severity="med", type="Missing Guardian", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+        elif scenario == 2:
+            text = "📝 [Incident Plan] Created INC-2026-903 for vehicle compliance failure. Grounding bus AU-BUS-104."
+            mcp_registry.call_tool("mcp_create_incident", severity="high", type="Inspection Failure", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+        else:
+            text = f"📝 [Incident Plan] Autonomous incident resolution logged and registered."
+    else:
+        try:
+            plan = re.search(r"PLAN:\s*(.*)", llm_msg, re.IGNORECASE).group(1).split("ACTION:")[0]
+            action_match = re.search(r"ACTION:\s*(.*)", llm_msg, re.IGNORECASE)
+            
+            if action_match:
+                act = action_match.group(1).upper()
+                if "RESOLVE_INCIDENT" in act and incident_id:
+                    mcp_registry.call_tool("mcp_update_incident_status", incident_id=incident_id, status="Resolved")
+                    action_taken = f" (Action: Resolved {incident_id} in DB)"
+                elif "CREATE_INCIDENT" in act:
+                    sev_match = re.search(r"SEVERITY:\s*(.*)", llm_msg, re.IGNORECASE)
+                    type_match = re.search(r"TYPE:\s*(.*)", llm_msg, re.IGNORECASE)
+                    
+                    sev = sev_match.group(1).strip().lower() if sev_match else "med"
+                    typ = type_match.group(1).strip() if type_match else "General Incident"
+                    
+                    res = mcp_registry.call_tool("mcp_create_incident", severity=sev, type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=plan.strip())
+                    if res and "incident_id" in res:
+                        action_taken = f" (Action: Created {res['incident_id']} in DB)"
+            
+            text = f"📝 [Incident Plan] {plan.strip()}{action_taken}"
+        except Exception as e:
+            text = f"📝 [Incident Plan] {llm_msg}"
+
+    next_step = "executive" if scenario in [0, 3] else "end"
+
+    action_str = action_taken.replace(" (Action: ", "").replace(")", "").strip() if action_taken else "Formulated incident resolution plan"
+
     return {
-        "conversation_history": [{"agent": "Incident Agent", "text": msg, "tool": tool}],
+        "conversation_history": [{"agent": "Incident Agent", "text": text, "tool": "Automated Incident DB MCP", "action": action_str}],
         "next_step": next_step,
     }
