@@ -4,10 +4,6 @@ from .llm import call_gemini
 
 def supervisor_agent(state: AgentState) -> dict:
     event_payload = state["event_payload"]
-    scenario = state["scenario"]
-
-    # In a fully event-driven architecture, the payload should ALWAYS come from the API request
-
     # Define A2A Agent Capabilities Registry
     AGENT_REGISTRY = {
         "evidence": "Specializes in analyzing incidents, edge telemetry, collision data, or harsh braking.",
@@ -35,27 +31,12 @@ def supervisor_agent(state: AgentState) -> dict:
     )
     cleaned = llm_decision.strip().lower() if llm_decision else ""
     
-    if cleaned in AGENT_REGISTRY:
-        next_step = cleaned
-    else:
-        # Fallback logic mapped to PRD requirements if LLM rate limits
-        p_lower = event_payload.lower()
-        if any(w in p_lower for w in ["analyze incident", "evidence", "telemetry", "collision", "harsh", "braking"]):
-            next_step = "evidence"  # PRD 3.2 Edge AI
-        elif any(w in p_lower for w in ["gps", "capacity", "occupancy", "fleet", "utilization", "boarding"]):
-            next_step = "fleet_monitoring"  # PRD 3.1 Fleet Tracking
-        elif any(w in p_lower for w in ["deviation", "route", "delay", "performance"]):
-            next_step = "route_optimization"  # PRD 3.6 Route Optimization
-        elif any(w in p_lower for w in ["handover", "guardian", "policy", "permit", "training", "compliance"]):
-            next_step = "compliance"  # PRD 3.4 Compliance
-        elif any(w in p_lower for w in ["phone", "mobile", "distraction", "speed", "unsafe"]):
-            next_step = "safety"  # PRD 3.3 Safety Events
-        else:
-            next_step = "executive"  # PRD 4.0 Analytics
+    # We explicitly trust the LLM routing decision now. Default to executive if unrecognized.
+    next_step = cleaned if cleaned in AGENT_REGISTRY else "executive"
 
     # Dynamic LLM instruction coordination text
     llm_msg = call_gemini(
-        prompt=f"An incident event occurred at timestamp {state.get('event_timestamp', 'UNKNOWN')} in scenario {scenario} with payload '{event_payload}'. Act as the Supervisor and output a 1-sentence message coordinating this pipeline. Next agent is '{next_step}'. Keep it professional.",
+        prompt=f"An incident event occurred at timestamp {state.get('event_timestamp', 'UNKNOWN')} with payload '{event_payload}'. Act as the Supervisor and output a 1-sentence message coordinating this pipeline. Next agent is '{next_step}'. Keep it professional.",
         system_instruction="You are the Supervisor Agent for the ADEK School Transportation AI Compliance Platform.",
     )
 
