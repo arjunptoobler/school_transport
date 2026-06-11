@@ -76,7 +76,7 @@ def incident_agent(state: AgentState) -> dict:
     llm_text = llm_res["text"] if (llm_res and isinstance(llm_res, dict)) else ""
     function_call = llm_res["functionCall"] if (llm_res and isinstance(llm_res, dict)) else None
 
-    if not llm_res:
+    if not llm_res or (not llm_text and not function_call):
         if incident_id:
             mcp_registry.call_tool("mcp_update_incident_status", incident_id=incident_id, status="Resolved")
             text = f"📝 [Incident Plan] Resolved existing incident {incident_id} autonomously. Fleet safety rules updated."
