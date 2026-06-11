@@ -1,9 +1,34 @@
 from .state import AgentState
 from .llm import call_gemini
-
+from .parser import extract_entities
+from ..database.connection import get_db_connection
 
 def supervisor_agent(state: AgentState) -> dict:
     event_payload = state["event_payload"]
+
+    # 1. Check for Duplicate Triggers (Deduplication Intelligence)
+    entities = extract_entities(state)
+    veh_id = entities.get("vehicle_id")
+    drv_id = entities.get("driver_id")
+    
+    if veh_id or drv_id:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            query = "SELECT incident_id, type FROM incidents WHERE status != 'Resolved' AND (vehicle_id = ? OR driver_id = ?) LIMIT 1"
+            cursor.execute(query, (veh_id, drv_id))
+            row = cursor.fetchone()
+            if row:
+                inc_id = row["incident_id"]
+                msg = f"🧠 Deduplication Intelligence: Detected active incident {inc_id} for this entity. Halting workflow to prevent alert fatigue."
+                return {
+                    "event_payload": event_payload,
+                    "conversation_history": [{"agent": "Supervisor Agent", "text": msg, "tool": "Deduplication Engine", "action": "Halted workflow (Duplicate)."}],
+                    "next_step": "end"
+                }
+        finally:
+            conn.close()
+
     # Define A2A Agent Capabilities Registry
     AGENT_REGISTRY = {
         "evidence": "Specializes in analyzing incidents, edge telemetry, collision data, or harsh braking.",
