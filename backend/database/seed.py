@@ -25,7 +25,20 @@ def seed_database():
         gps_status TEXT,
         inspection_status TEXT,
         capacity INTEGER,
-        current_occupancy INTEGER
+        current_occupancy INTEGER,
+        current_lat REAL,
+        current_lon REAL,
+        assigned_route TEXT
+    )
+    """)
+    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS roadblocks (
+        roadblock_id TEXT PRIMARY KEY,
+        lat REAL,
+        lon REAL,
+        radius REAL,
+        description TEXT
     )
     """)
     
@@ -115,18 +128,16 @@ def seed_database():
     """)
 
     
-    # Check if data exists in the fines table (indicates new schema is seeded)
-    cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='fines'")
+    # Check if data exists in the roadblocks table (indicates new schema is seeded)
+    cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='roadblocks'")
     if cursor.fetchone()[0] > 0:
-        cursor.execute("SELECT COUNT(*) FROM fines")
+        cursor.execute("SELECT COUNT(*) FROM roadblocks")
         if cursor.fetchone()[0] > 0:
-            cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='student_boardings'")
-            if cursor.fetchone()[0] > 0:
-                conn.close()
-                return
+            conn.close()
+            return
 
     # Clear old tables to prevent key constraints on re-seeding
-    for tbl in ["drivers", "vehicles", "students", "incidents", "fines", "compliance_sla", "edge_telemetry", "student_boardings"]:
+    for tbl in ["drivers", "vehicles", "students", "incidents", "fines", "compliance_sla", "edge_telemetry", "student_boardings", "roadblocks"]:
         cursor.execute(f"DELETE FROM {tbl}")
 
     # Seed Drivers (500 records)
@@ -148,6 +159,7 @@ def seed_database():
     
     # Seed Vehicles (250 records)
     vehicles = []
+    # London Center: 51.5030, -0.1500
     for i in range(1, 251):
         veh_id = f"AU-BUS-{100 + i}"
         plate = f"AD {random.randint(10000, 99999)}"
@@ -155,10 +167,38 @@ def seed_database():
         gps = "online" if i % 40 != 0 else "offline"
         insp = "valid" if i % 30 != 0 else "failed"
         capacity = random.choice([30, 40, 50])
-        current_occ = random.randint(5, capacity - 2)
-        vehicles.append((veh_id, plate, age, gps, insp, capacity, current_occ))
         
-    cursor.executemany("INSERT INTO vehicles VALUES (?,?,?,?,?,?,?)", vehicles)
+        # Scenario specifics:
+        # AU-BUS-104 (failed/grounded bus in London-Route-A)
+        # AU-BUS-106 (standby bus at Depot)
+        if veh_id == "AU-BUS-104":
+            current_occ = 12
+            current_lat = 51.5075
+            current_lon = -0.1400
+            assigned_route = "London-Route-A"
+            insp = "valid"  # Grounded during pre-trip checklist run
+        elif veh_id == "AU-BUS-106":
+            current_occ = 0
+            current_lat = 51.5030
+            current_lon = -0.1500
+            assigned_route = "Standby"
+            insp = "valid"
+            gps = "online"
+        else:
+            current_occ = random.randint(5, capacity - 2)
+            current_lat = 51.5030 + random.uniform(-0.02, 0.02)
+            current_lon = -0.1500 + random.uniform(-0.03, 0.03)
+            assigned_route = f"London-Route-{random.choice(['B', 'C', 'D', 'E'])}"
+            
+        vehicles.append((veh_id, plate, age, gps, insp, capacity, current_occ, current_lat, current_lon, assigned_route))
+        
+    cursor.executemany("INSERT INTO vehicles VALUES (?,?,?,?,?,?,?,?,?,?)", vehicles)
+
+    # Seed Roadblock: Piccadilly near Green Park
+    cursor.execute(
+        "INSERT INTO roadblocks VALUES (?,?,?,?,?)",
+        ("RB-LONDON-01", 51.5070, -0.1420, 100.0, "Piccadilly (Green Park) Road Closure")
+    )
     
     # Seed Students (5000 records)
     schools = ["Abu Dhabi International School", "GEMS World Academy Abu Dhabi", "The British School Al Khubairat", "ADEK Model School"]

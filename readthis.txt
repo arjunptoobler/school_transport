@@ -1,0 +1,87 @@
+================================================================================
+           ADEK School Transportation AI Compliance Platform
+                    Route Optimization Rebuild Detail
+================================================================================
+
+This document details the modifications made to rebuild the Route Optimization
+Agent, replacing LLM narrative hallucinations with actual spatial calculations
+and integrating an interactive map using Leaflet.js.
+
+--------------------------------------------------------------------------------
+1. FILES CREATED & MODIFIED
+--------------------------------------------------------------------------------
+
+- [.env] (Root Directory)
+  Created a root .env file containing placeholders for ORS_API_KEY and GEMINI_API_KEY.
+
+- [backend/database/seed.py]
+  * Created the 'roadblocks' table.
+  * Added 'current_lat', 'current_lon', and 'assigned_route' columns to 'vehicles'.
+  * Seeded coordinates in London for the demo scenarios.
+
+- [backend/routing_solver.py] (New File)
+  * Implements calculate_route(start, end, roadblock).
+  * If ORS_API_KEY is active, queries the OpenRouteService API with roadblock
+    avoid_polygons bounding boxes.
+  * If offline or key is missing, falls back to actual pre-computed London road
+    network coordinates (GeoJSON geometry) so the demo runs without configuration.
+
+- [backend/routes/fleet.py]
+  * Exposed the '/api/fleet/routes' endpoint to serve active roadblocks, vehicles,
+    and route shapes (normal, detour, and standby merge) dynamically to the frontend.
+
+- [backend/mcp/fleet.py]
+  * Registered the 'mcp_optimize_route' tool.
+  * Handles roadblock detours and failed inspections/breakdowns.
+  * Checks SQLite database for standby vehicles with valid inspections and sufficient
+    seating capacity, assigns passenger loads, and updates the database state.
+
+- [backend/agents/route_optimization.py]
+  * Updated the Route Optimization Agent node to call the 'mcp_optimize_route' tool.
+  * Feeds the resulting distance, time, and dispatch metrics directly into the
+    Gemini LLM prompt so that the agent's alerts contain verified physical values.
+
+- [front/index.html]
+  * Injected Leaflet.js CSS and Javascript CDN links.
+  * Replaced the static CSS grid simulator with a styled Leaflet map container and legend.
+
+- [front/app.js]
+  * Initialized the Leaflet map (centered on London).
+  * Rebuilt initMap() and updateMapLayers(scenarioNum) to draw schools, depots,
+    moving buses, roadblocks, and orange detour routes dynamically on the map.
+  * Hooked map updates directly into the UI scenario cards and custom event injections.
+
+--------------------------------------------------------------------------------
+2. DEMONSTRATION COORDINATES (LONDON)
+--------------------------------------------------------------------------------
+
+- Bus Depot (Start): Hyde Park Corner [51.5030, -0.1500]
+- Covent Garden School (End): Covent Garden [51.5120, -0.1220]
+- Roadblock: Piccadilly near Green Park [51.5070, -0.1420]
+- Bus 2 (Grounded): Near Green Park [51.5075, -0.1400]
+- Bus 1 (Standby): Depot [51.5030, -0.1500]
+
+--------------------------------------------------------------------------------
+3. HOW TO RUN AND DEMONSTRATE
+--------------------------------------------------------------------------------
+
+Ensure uvicorn is running:
+  uvicorn backend.main:app --host 0.0.0.0 --port 8000
+(This automatically clears and seeds the new coordinates on startup).
+
+Then open the dashboard in your browser and try the two scenarios:
+
+A) ROUTE DETOUR (Avoiding a Roadblock):
+   1. Scroll to the "Simulate Incoming Incident Event" input at the bottom of the page.
+   2. Type: "roadblock Piccadilly" (or "closure Piccadilly") and click "Inject Event".
+   3. The Leaflet map will render a roadblock warning marker (🚧) at Piccadilly.
+   4. It will automatically draw the orange "Detour Route" bypassing the roadblock
+      to the north (via Mayfair) and update the distance and travel time.
+
+B) VEHICLE DISPATCH (Mechanical Breakdown & Standby Merge):
+   1. Click on Scenario 03 (Vehicle Inspection Fail) under the AI Agents tab.
+   2. The Leaflet map will show Bus 2 (🚨) grounded near Green Park with a warning.
+   3. The Standby Bus (Bus 1) is dispatched from the Depot (🏢).
+   4. The map renders the dashed route line showing the standby bus driving to the
+      grounded bus, picking up the 12 stranded students, and taking them to school.
+   5. The conversation logs output the exact capacity optimization calculations.

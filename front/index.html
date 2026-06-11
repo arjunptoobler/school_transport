@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -164,14 +165,12 @@
             <span class="card-title">📍 Abu Dhabi Fleet Map (Simulated)</span>
             <span class="badge badge-blue">Real-time GPS</span>
           </div>
-          <div class="map-sim" id="map-sim">
-            <div class="map-bg"></div>
-            <div class="map-buses" id="map-buses"></div>
-            <div class="map-legend">
-              <span class="legend-dot legend-green"></span> Moving
-              <span class="legend-dot legend-yellow"></span> Stopped
-              <span class="legend-dot legend-red"></span> Alert
-            </div>
+          <div id="map-leaflet" style="height: 420px; border-radius: 8px; border: 1px solid var(--border); position: relative; overflow: hidden; background: var(--bg2);"></div>
+          <div class="map-legend" style="margin-top: 0.5rem; display: flex; gap: 1rem; font-size: 0.9rem; justify-content: flex-end; color: var(--text2);">
+            <span style="display: flex; align-items: center; gap: 0.25rem;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;"></span> Bus 1 (Helper)</span>
+            <span style="display: flex; align-items: center; gap: 0.25rem;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> Bus 2 (Grounded)</span>
+            <span style="display: flex; align-items: center; gap: 0.25rem;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b5cf6;"></span> Normal Route</span>
+            <span style="display: flex; align-items: center; gap: 0.25rem;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f97316;"></span> Detour Route</span>
           </div>
         </div>
         <div class="fleet-sidebar">
@@ -410,6 +409,7 @@
 
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
