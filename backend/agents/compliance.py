@@ -146,6 +146,8 @@ def compliance_agent(state: AgentState) -> dict:
 
     # 1.8  Pre-departure compliance check — deterministic pass/fail before LLM.
     #      Triggered by events describing a driver attempting to start a vehicle.
+    action_taken = ""
+
     _pre_departure_keywords = [
         "start", "starting", "departure", "pre-departure", "pre departure",
         "ignition", "beginning shift", "begin route", "vehicle start", "vehicle check",
@@ -274,8 +276,6 @@ def compliance_agent(state: AgentState) -> dict:
     )
 
     # ── Parse LLM output or use fallback ─────────────────────────────────────
-
-    action_taken = ""
 
     # Scenarios where vehicle must be grounded regardless of LLM (inspection failure)
     fallback_ground = {2: True}
