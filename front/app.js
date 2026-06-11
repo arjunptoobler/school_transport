@@ -149,8 +149,9 @@ function renderIncidentsList() {
     list.appendChild(item);
   });
   
+  const openCount = activeIncidents.filter(inc => inc.status !== 'Resolved').length;
   const badge = document.getElementById('incident-count-badge');
-  if (badge) badge.innerText = `${activeIncidents.length} Open`;
+  if (badge) badge.innerText = `${openCount} Open`;
 }
 
 async function selectIncident(inc) {
@@ -716,11 +717,16 @@ async function loadKPIs() {
   if (!data) return;
   const el = (id) => document.getElementById(id);
 
-  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = activeIncidents.length.toString();
+  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = data.manual_overrides !== undefined ? data.manual_overrides.toString() : '0';
+  if (el('kpi-resolved-count')) el('kpi-resolved-count').textContent = data.resolved_incidents !== undefined ? data.resolved_incidents.toString() : '0';
   const incSub = document.querySelector('#kpi-incidents .kpi-sub');
   if (incSub) incSub.textContent = `Escalated by Supervisor Agent`;
   const incBar = document.querySelector('#kpi-incidents .kpi-fill');
-  if (incBar) incBar.style.width = `15%`;
+  if (incBar) {
+    const total = (data.open_incidents || 0) + (data.resolved_incidents || 0);
+    const pct = total > 0 ? Math.round(((data.manual_overrides || 0) / total) * 100) : 0;
+    incBar.style.width = `${pct}%`;
+  }
 
   if (el('hbar-gps')) el('hbar-gps').style.width = `${data.gps_active_pct}%`;
   if (el('hval-gps')) el('hval-gps').textContent = `${data.gps_active_pct}%`;

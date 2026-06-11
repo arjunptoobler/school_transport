@@ -64,12 +64,20 @@ def get_live_kpis():
         total_drivers = cursor.fetchone()[0]
         compliance_score = round((compliant_drivers / total_drivers) * 100, 1) if total_drivers else 0
 
-        cursor.execute("SELECT COUNT(*) FROM incidents WHERE status NOT IN ('Resolution', 'Reporting')")
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE status NOT IN ('Resolved', 'Resolution', 'Reporting')")
         open_incidents = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high' AND status NOT IN ('Resolution', 'Reporting')")
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'high' AND status NOT IN ('Resolved', 'Resolution', 'Reporting')")
         high_incidents = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'med' AND status NOT IN ('Resolution', 'Reporting')")
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'med' AND status NOT IN ('Resolved', 'Resolution', 'Reporting')")
         med_incidents = cursor.fetchone()[0]
+
+        # Escalated/Human Review: status = 'Manual Override'
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE status = 'Manual Override'")
+        manual_overrides = cursor.fetchone()[0]
+
+        # Auto-resolved: status = 'Resolved'
+        cursor.execute("SELECT COUNT(*) FROM incidents WHERE status = 'Resolved'")
+        resolved_incidents = cursor.fetchone()[0]
 
         cursor.execute("SELECT SUM(current_occupancy) FROM vehicles")
         total_students = cursor.fetchone()[0] or 0
@@ -89,6 +97,8 @@ def get_live_kpis():
             "open_incidents": open_incidents,
             "high_incidents": high_incidents,
             "med_incidents": med_incidents,
+            "manual_overrides": manual_overrides,
+            "resolved_incidents": resolved_incidents,
             "students_in_transit": total_students,
             "gps_active_pct": gps_pct,
             "inspection_valid_pct": insp_pct,
