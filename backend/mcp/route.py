@@ -30,13 +30,19 @@ def calculate_detour(vehicle_id: str, obstacle_lat: float, obstacle_lng: float, 
         # Calculate normal route (without roadblock) to establish base duration
         normal_route = calculate_route(start_coords, end_coords, None)
         normal_props = normal_route["features"][0]["properties"]
-        normal_duration_mins = normal_props["duration"] / 60.0
+        if "summary" in normal_props:
+            normal_duration_mins = normal_props["summary"]["duration"] / 60.0
+        else:
+            normal_duration_mins = normal_props["duration"] / 60.0
         
         # Calculate detour route (with roadblock)
         detour_route = calculate_route(start_coords, end_coords, obstacle_coords)
         detour_props = detour_route["features"][0]["properties"]
         detour_geom = detour_route["features"][0]["geometry"]
-        detour_duration_mins = detour_props["duration"] / 60.0
+        if "summary" in detour_props:
+            detour_duration_mins = detour_props["summary"]["duration"] / 60.0
+        else:
+            detour_duration_mins = detour_props["duration"] / 60.0
         
         # Calculate delay
         delay_minutes = max(0, round(detour_duration_mins - normal_duration_mins))
