@@ -620,6 +620,24 @@ function addAlertItem(alert) {
   if (feed.children.length > 20) feed.removeChild(feed.lastChild);
 }
 
+const agentConfig = {
+  'Supervisor': { icon: '🧠', accent: '#8b5cf6', bg: 'rgba(139,92,246,.08)', border: 'rgba(139,92,246,.25)' },
+  'Safety':     { icon: '🛡️', accent: '#f59e0b', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.25)' },
+  'Evidence':   { icon: '👁️', accent: '#06b6d4', bg: 'rgba(6,182,212,.08)',   border: 'rgba(6,182,212,.25)' },
+  'Compliance': { icon: '✅', accent: '#10b981', bg: 'rgba(16,185,129,.08)', border: 'rgba(16,185,129,.25)' },
+  'Route':      { icon: '🗺️', accent: '#f97316', bg: 'rgba(249,115,22,.08)', border: 'rgba(249,115,22,.25)' },
+  'Fleet':      { icon: '🚌', accent: '#3b82f6', bg: 'rgba(59,130,246,.08)', border: 'rgba(59,130,246,.25)' },
+  'Incident':   { icon: '🚨', accent: '#ef4444', bg: 'rgba(239,68,68,.08)',   border: 'rgba(239,68,68,.25)' },
+  'Executive':  { icon: '📊', accent: '#a78bfa', bg: 'rgba(167,139,250,.08)', border: 'rgba(167,139,250,.25)' },
+};
+
+function getConfig(agentName) {
+  for (const [key, cfg] of Object.entries(agentConfig)) {
+    if (agentName.includes(key)) return cfg;
+  }
+  return { icon: '🤖', accent: '#6b7280', bg: 'rgba(107,114,128,.08)', border: 'rgba(107,114,128,.25)' };
+}
+
 const SEEN_RUNS = new Set();
 
 function processApiRun(run) {
@@ -643,6 +661,20 @@ function processApiRun(run) {
   loadFleetData();
   updateMapLayers(run.scenario_id);
 
+  // Setup Workflow Trace UI
+  const traceCard = document.getElementById('workflow-trace-card');
+  const badge = document.getElementById('workflow-status-badge');
+  const stepsDiv = document.getElementById('agent-conversation');
+  if (traceCard && stepsDiv && badge) {
+    traceCard.style.display = 'block';
+    stepsDiv.innerHTML = '';
+    badge.textContent = '● Pipeline Running (API)';
+    badge.style.background = 'rgba(59,130,246,.2)';
+    badge.style.color = '#60a5fa';
+    const evtTextEl = document.getElementById('workflow-event-text');
+    if (evtTextEl) evtTextEl.textContent = run.event_payload;
+  }
+
   // 3. Chronologically display agent actions
   let idx = 0;
   function nextStep() {
@@ -658,8 +690,56 @@ function processApiRun(run) {
       // Refresh KPIs again at the end of workflow
       loadKPIs();
       loadIncidentsData();
+      if (badge) {
+        badge.textContent = '✓ Workflow Complete';
+        badge.style.background = 'rgba(16,185,129,.2)';
+        badge.style.color = '#34d399';
+      }
     }
     
+    // Add to Agent Activity Monitor (Workflow Trace)
+    if (stepsDiv) {
+      const cfg = getConfig(msg.agent);
+      const step = document.createElement('div');
+      step.style.cssText = `display:flex;gap:0;opacity:0;transform:translateY(8px);transition:all .4s ease;`;
+
+      const connector = document.createElement('div');
+      connector.style.cssText = `display:flex;flex-direction:column;align-items:center;width:48px;flex-shrink:0;`;
+      connector.innerHTML = `
+        <div style="width:36px;height:36px;border-radius:50%;background:${cfg.bg};border:2px solid ${cfg.accent};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;box-shadow:0 0 12px ${cfg.accent}44;">${cfg.icon}</div>
+        ${!isLast ? `<div style="width:2px;flex:1;min-height:20px;background:linear-gradient(to bottom,${cfg.accent}88,transparent);margin-top:4px;"></div>` : ''}
+      `;
+
+      const content = document.createElement('div');
+      content.style.cssText = `flex:1;background:${cfg.bg};border:1px solid ${cfg.border};border-radius:10px;padding:1rem 1.1rem;margin-bottom:${isLast?'0':'12px'};`;
+
+      const actionPill = msg.action ? `
+        <div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:20px;padding:.25rem .75rem;font-size:.72rem;font-weight:700;color:#34d399;margin-top:.6rem;">
+          ⚡ Action Executed: ${msg.action}
+        </div>` : '';
+
+      content.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+          <span style="font-weight:700;font-size:.85rem;color:${cfg.accent};">${msg.agent} <span style="font-size:.7rem;color:var(--text3);margin-left:8px;">${fullTag}</span></span>
+          <span style="font-size:.72rem;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:.2rem .6rem;">🛠️ ${msg.tool}</span>
+        </div>
+        <div style="font-size:.84rem;line-height:1.6;color:var(--text1);">${msg.text}</div>
+        ${actionPill}
+        ${!isLast ? `<div style="font-size:.72rem;color:var(--text3);margin-top:.6rem;">↳ Handing off to next agent…</div>` : '<div style="font-size:.72rem;color:#34d399;margin-top:.6rem;font-weight:600;">✓ Workflow Completed</div>'}
+      `;
+
+      step.appendChild(connector);
+      step.appendChild(content);
+      stepsDiv.appendChild(step);
+
+      requestAnimationFrame(() => {
+        step.style.opacity = '1';
+        step.style.transform = 'translateY(0)';
+      });
+      stepsDiv.scrollTop = stepsDiv.scrollHeight;
+      highlightDiagramNode(msg.agent);
+    }
+
     idx++;
     setTimeout(nextStep, 1500);
   }
@@ -736,24 +816,7 @@ async function runScenario(num) {
 
   const messages = (res && res.success) ? res.history : getFallbackHistory(num);
 
-  // Agent colour config
-  const agentConfig = {
-    'Supervisor': { icon: '🧠', accent: '#8b5cf6', bg: 'rgba(139,92,246,.08)', border: 'rgba(139,92,246,.25)' },
-    'Safety':     { icon: '🛡️', accent: '#f59e0b', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.25)' },
-    'Evidence':   { icon: '👁️', accent: '#06b6d4', bg: 'rgba(6,182,212,.08)',   border: 'rgba(6,182,212,.25)' },
-    'Compliance': { icon: '✅', accent: '#10b981', bg: 'rgba(16,185,129,.08)', border: 'rgba(16,185,129,.25)' },
-    'Route':      { icon: '🗺️', accent: '#f97316', bg: 'rgba(249,115,22,.08)', border: 'rgba(249,115,22,.25)' },
-    'Fleet':      { icon: '🚌', accent: '#3b82f6', bg: 'rgba(59,130,246,.08)', border: 'rgba(59,130,246,.25)' },
-    'Incident':   { icon: '🚨', accent: '#ef4444', bg: 'rgba(239,68,68,.08)',   border: 'rgba(239,68,68,.25)' },
-    'Executive':  { icon: '📊', accent: '#a78bfa', bg: 'rgba(167,139,250,.08)', border: 'rgba(167,139,250,.25)' },
-  };
-
-  function getConfig(agentName) {
-    for (const [key, cfg] of Object.entries(agentConfig)) {
-      if (agentName.includes(key)) return cfg;
-    }
-    return { icon: '🤖', accent: '#6b7280', bg: 'rgba(107,114,128,.08)', border: 'rgba(107,114,128,.25)' };
-  }
+  // Agent colour config and getConfig moved to global scope
 
   const baseTag = getEventTag(num, payload);
   const uid = Math.random().toString(36).substring(2, 6).toUpperCase();
