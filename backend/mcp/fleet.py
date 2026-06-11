@@ -109,8 +109,12 @@ def optimize_route(vehicle_id: str, roadblock_id: str = None):
         # 3. Calculate route
         route_geojson = calculate_route(start_coords, end_coords, rb_coords)
         props = route_geojson["features"][0]["properties"]
-        distance_km = round(props["distance"] / 1000.0, 2)
-        duration_mins = round(props["duration"] / 60.0, 1)
+        if "summary" in props:
+            distance_km = round(props["summary"]["distance"] / 1000.0, 2)
+            duration_mins = round(props["summary"]["duration"] / 60.0, 1)
+        else:
+            distance_km = round(props["distance"] / 1000.0, 2)
+            duration_mins = round(props["duration"] / 60.0, 1)
         
         # 4. If the vehicle has failed inspection (Grounded Scenario), dispatch standby
         if vehicle["inspection_status"] == "failed" or vehicle_id == "AU-BUS-104":
@@ -135,8 +139,12 @@ def optimize_route(vehicle_id: str, roadblock_id: str = None):
                 standby_start = [standby["current_lon"], standby["current_lat"]]
                 standby_route = calculate_route(standby_start, end_coords)
                 props_sb = standby_route["features"][0]["properties"]
-                sb_dist = round(props_sb["distance"] / 1000.0, 2)
-                sb_dur = round(props_sb["duration"] / 60.0, 1)
+                if "summary" in props_sb:
+                    sb_dist = round(props_sb["summary"]["distance"] / 1000.0, 2)
+                    sb_dur = round(props_sb["summary"]["duration"] / 60.0, 1)
+                else:
+                    sb_dist = round(props_sb["distance"] / 1000.0, 2)
+                    sb_dur = round(props_sb["duration"] / 60.0, 1)
                 
                 return {
                     "action": "standby_dispatch",
