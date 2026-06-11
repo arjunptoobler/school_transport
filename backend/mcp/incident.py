@@ -29,14 +29,15 @@ def batch_write_history_to_audit_log(incident_id: str, history: list):
             agent = step.get("agent", "Unknown Agent")
             
             # Extract action text or use tool name
-            action = step.get("action")
+            # The user wants to see EXACT INTELLIGENCE. The rich intelligence is in step["text"].
+            action = step.get("text", "")
             if not action or action == "None":
-                action = "Analyzed Context"
+                action = step.get("action", "Analyzed Context")
                 
-            detail = step.get("tool", "")
-            if not detail:
-                detail = step.get("text", "")[:100]
-                
+            tool_name = step.get("tool", "Internal Logic")
+            exec_action = step.get("action", "N/A")
+            detail = f"{tool_name} → {exec_action}"
+            
             cursor.execute(
                 "INSERT INTO incident_audit_log (log_id, incident_id, agent, action, detail, timestamp) VALUES (?,?,?,?,?,?)",
                 (log_id, incident_id, agent, action, detail, dt.isoformat()),

@@ -75,8 +75,19 @@ def incident_agent(state: AgentState) -> dict:
                 batch_write_history_to_audit_log(inc_id, history)
                 mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
         else:
-            text = f"📝 [Incident Plan] Automated safety incident recorded due to edge trigger."
-            res = mcp_registry.call_tool("mcp_create_incident", severity="med", type="General Edge Alert", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            typ = "General Edge Alert"
+            q_lower = query.lower()
+            if "distract" in q_lower or "phone" in q_lower or "seatbelt" in q_lower:
+                typ = "Driver Distraction"
+            elif "guardian" in q_lower or "dropoff" in q_lower or "boarding" in q_lower:
+                typ = "Missing Guardian"
+            elif "route" in q_lower or "deviat" in q_lower:
+                typ = "Route Deviation"
+            elif "brake" in q_lower or "inspect" in q_lower or "compliance" in q_lower:
+                typ = "Compliance Failure"
+
+            text = f"📝 [Incident Plan] Handled event autonomously: {query}"
+            res = mcp_registry.call_tool("mcp_create_incident", severity="med", type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=text)
             if res and "incident_id" in res:
                 inc_id = res['incident_id']
                 action_taken = f" (Action: Created {inc_id} in DB)"
