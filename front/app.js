@@ -552,6 +552,27 @@ async function updateMapLayers(scenarioNum) {
 // --- ALERTS AND FEED ---
 const LIVE_ALERTS = [];
 
+function getEventTag(scenarioId, queryText = "") {
+  if (scenarioId === 0) return "[Distraction]";
+  if (scenarioId === 1) return "[Missing Guardian]";
+  if (scenarioId === 2) return "[Pre-Trip Compliance]";
+  if (scenarioId === 3) return "[Executive Summary]";
+  
+  const q = queryText.toLowerCase();
+  if (q.includes("distract") || q.includes("phone") || q.includes("seatbelt") || q.includes("mobile")) {
+    return "[Distraction]";
+  } else if (q.includes("guardian") || q.includes("parent") || q.includes("boarding") || q.includes("student")) {
+    return "[Missing Guardian]";
+  } else if (q.includes("compliance") || q.includes("inspection") || q.includes("permit") || q.includes("pressure") || q.includes("braking")) {
+    return "[Pre-Trip Compliance]";
+  } else if (q.includes("summary") || q.includes("executive") || q.includes("kpi")) {
+    return "[Executive Summary]";
+  } else if (q.includes("route") || q.includes("deviation") || q.includes("block") || q.includes("closure")) {
+    return "[Route Deviation]";
+  }
+  return "[System Event]";
+}
+
 function addAlertItem(alert) {
   const feed = document.getElementById('alert-feed');
   if (!feed) return;
@@ -630,8 +651,19 @@ async function runScenario(num) {
     return { icon: '🤖', accent: '#6b7280', bg: 'rgba(107,114,128,.08)', border: 'rgba(107,114,128,.25)' };
   }
 
+  const tag = getEventTag(num, payload);
   let idx = 0;
   function nextStep() {
+    if (idx === 0) {
+      let alertType = 'info';
+      if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
+      else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+      addAlertItem({
+        type: alertType,
+        text: `📢 ${tag} ALERT RECEIVED: ${payload}`
+      });
+    }
+
     if (idx >= messages.length) {
       scenarioRunning = false;
       document.getElementById(`scenario-${num}`).classList.remove('running');
@@ -642,8 +674,22 @@ async function runScenario(num) {
     }
 
     const msg = messages[idx];
+    
+    // Log agent action chronologically
+    addAlertItem({
+      type: 'info',
+      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
+    });
+
     const cfg = getConfig(msg.agent);
     const isLast = idx === messages.length - 1;
+
+    if (isLast) {
+      addAlertItem({
+        type: 'ok',
+        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+      });
+    }
 
     const step = document.createElement('div');
     step.style.cssText = `display:flex;gap:0;opacity:0;transform:translateY(8px);transition:all .4s ease;`;
@@ -920,11 +966,37 @@ async function runCustomQuery() {
   });
 
   conv.innerHTML = '';
+  const tag = getEventTag(99, query);
   const messages = (res && res.success) ? res.history : [{ agent: 'Supervisor Agent', text: 'Unable to reach agent pipeline.', tool: 'Fallback' }];
   let idx = 0;
   function nextStep() {
+    if (idx === 0) {
+      let alertType = 'info';
+      if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
+      else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+      addAlertItem({
+        type: alertType,
+        text: `📢 ${tag} ALERT RECEIVED: ${query}`
+      });
+    }
+
     if (idx >= messages.length) return;
     const msg = messages[idx];
+    
+    // Log agent action chronologically
+    addAlertItem({
+      type: 'info',
+      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
+    });
+
+    const isLast = idx === messages.length - 1;
+    if (isLast) {
+      addAlertItem({
+        type: 'ok',
+        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+      });
+    }
+
     const mDiv = document.createElement('div');
     mDiv.className = 'conv-msg';
     mDiv.innerHTML = `<span class="conv-agent">${msg.agent}</span><div class="conv-text">${msg.text}</div><div class="conv-tool">🛠️ ${msg.tool}</div>`;
