@@ -139,3 +139,44 @@ def get_recent_boardings():
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+@router.get("/routes")
+def get_routing_scenario_data():
+    """Return roadblocks, vehicle coordinates, and GeoJSON geometries for London demo routes."""
+    from ..routing_solver import calculate_route
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        
+        # 1. Fetch Roadblocks
+        cursor.execute("SELECT * FROM roadblocks")
+        roadblocks = [dict(r) for r in cursor.fetchall()]
+        
+        # 2. Fetch Vehicles (with new lat/lon columns)
+        cursor.execute("SELECT vehicle_id, license_plate, current_lat, current_lon, assigned_route, inspection_status, gps_status, capacity, current_occupancy FROM vehicles WHERE vehicle_id IN ('AU-BUS-104', 'AU-BUS-106')")
+        vehicles = [dict(r) for r in cursor.fetchall()]
+        
+        # 3. Calculate path geometries on-demand
+        depot = [-0.1500, 51.5030]
+        school = [-0.1220, 51.5120]
+        rb_coords = [-0.1420, 51.5070]
+        
+        route_normal = calculate_route(depot, school)
+        route_detour = calculate_route(depot, school, roadblock=rb_coords)
+        route_merge = calculate_route(depot, school)  # Breakdown route (re-uses solver sequence)
+        
+        return {
+            "success": True,
+            "roadblocks": roadblocks,
+            "vehicles": vehicles,
+            "paths": {
+                "normal": route_normal,
+                "detour": route_detour,
+                "merge": route_merge
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
