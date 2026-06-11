@@ -52,11 +52,11 @@ function switchTab(tabId) {
 
 // --- MOCK FALLBACK DATA ---
 const MOCK_DRIVERS = [
-  { driver_id: 'DRV-1024', name: 'Zayed Al Mansoori', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Emirates Transport' },
-  { driver_id: 'DRV-2089', name: 'Ahmed Al Hashimi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Al Ghazal Transport' },
-  { driver_id: 'DRV-1152', name: 'Mustafa Mahmoud', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Hafilat School' },
-  { driver_id: 'DRV-3041', name: 'John Doe', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Pending Refresher', operator: 'Abu Dhabi Transport' },
-  { driver_id: 'DRV-4412', name: 'Yousef Hassan', permit_status: 'Suspended', medical_status: 'Expired', training_status: 'Failed Evaluation', operator: 'Emirates Transport' }
+  { driver_id: 'DRV-1024', name: 'Zayed Al Mansoori', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Emirates Transport', incident_count: 0, is_repeat_offender: false },
+  { driver_id: 'DRV-2089', name: 'Ahmed Al Hashimi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Al Ghazal Transport', incident_count: 1, is_repeat_offender: false },
+  { driver_id: 'DRV-1152', name: 'Mustafa Mahmoud', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Hafilat School', incident_count: 0, is_repeat_offender: false },
+  { driver_id: 'DRV-3041', name: 'John Doe', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Pending Refresher', operator: 'Abu Dhabi Transport', incident_count: 2, is_repeat_offender: false },
+  { driver_id: 'DRV-4412', name: 'Yousef Hassan', permit_status: 'Suspended', medical_status: 'Expired', training_status: 'Failed Evaluation', operator: 'Emirates Transport', incident_count: 4, is_repeat_offender: true }
 ];
 
 const MOCK_VEHICLES = [
@@ -65,6 +65,13 @@ const MOCK_VEHICLES = [
   { vehicle_id: 'AU-BUS-103', license_plate: 'AD 44521', age: 5, gps_status: 'online', inspection_status: 'valid' },
   { vehicle_id: 'AU-BUS-104', license_plate: 'AD 10294', age: 7, gps_status: 'offline', inspection_status: 'failed' },
   { vehicle_id: 'AU-BUS-105', license_plate: 'AD 90912', age: 9, gps_status: 'online', inspection_status: 'valid' }
+];
+
+const MOCK_SLAS = [
+  { sla_id: 'SLA-2026-001', driver_id: 'DRV-3041', deadline_date: '2026-06-16T00:00:00', status: 'Pending' },
+  { sla_id: 'SLA-2026-002', driver_id: 'DRV-4412', deadline_date: '2026-06-08T00:00:00', status: 'Overdue' },
+  { sla_id: 'SLA-2026-003', driver_id: 'DRV-1024', deadline_date: '2026-06-20T00:00:00', status: 'Pending' },
+  { sla_id: 'SLA-2026-004', driver_id: 'DRV-2089', deadline_date: '2026-06-09T00:00:00', status: 'Overdue' },
 ];
 
 const MOCK_INCIDENTS = [];
@@ -78,24 +85,33 @@ async function loadFleetData() {
   if (!tbody || !vlist) return;
   tbody.innerHTML = '';
   vlist.innerHTML = '';
-  
+
   const drivers = (data && data.drivers) ? data.drivers : MOCK_DRIVERS;
   const vehicles = (data && data.vehicles) ? data.vehicles : MOCK_VEHICLES;
+  const driverCountBadge = document.getElementById('driver-count-badge');
+  if (driverCountBadge) driverCountBadge.textContent = `${drivers.length} drivers`;
   
   drivers.forEach(drv => {
     let stClass = 'sp-ok';
     if (drv.training_status.includes('Pending')) stClass = 'sp-warn';
     if (drv.permit_status === 'Suspended') stClass = 'sp-fail';
-    
+    const incCount = drv.incident_count || drv.total_incidents || 0;
+    const repeatBadge = (drv.is_repeat_offender || incCount >= 3)
+      ? ' <span class="status-pill sp-fail" style="font-size:.6rem;padding:.1rem .35rem;">Repeat</span>' : '';
+
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.title = `Click to see ${drv.name}'s compliance summary`;
     tr.innerHTML = `
       <td><strong>${drv.driver_id}</strong></td>
       <td>${drv.name}</td>
       <td>${drv.permit_status}</td>
       <td>${drv.medical_status}</td>
       <td>${drv.training_status}</td>
+      <td>${incCount}${repeatBadge}</td>
       <td><span class="status-pill ${stClass}">${drv.permit_status === 'Valid' ? 'Compliant' : drv.permit_status}</span></td>
     `;
+    tr.onclick = () => showDriverDetail(tr, drv, incCount);
     tbody.appendChild(tr);
   });
 
@@ -116,6 +132,24 @@ async function loadFleetData() {
     `;
     vlist.appendChild(item);
   });
+
+  // Grounded vehicles table (compliance tab)
+  const grounded = vehicles.filter(v => v.inspection_status === 'failed');
+  const groundedBadge = document.getElementById('grounded-count-badge');
+  if (groundedBadge) groundedBadge.textContent = grounded.length > 0 ? `${grounded.length} grounded` : '0 grounded';
+  const groundedTbody = document.getElementById('grounded-tbody');
+  if (groundedTbody) {
+    groundedTbody.innerHTML = '';
+    if (grounded.length === 0) {
+      groundedTbody.innerHTML = '<tr><td colspan="6" style="color:var(--accent3);text-align:center;padding:.75rem;">No vehicles currently grounded</td></tr>';
+    } else {
+      grounded.forEach(v => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${v.vehicle_id}</strong></td><td>${v.license_plate || '—'}</td><td><span class="status-pill sp-fail">FAILED</span></td><td><span class="status-pill ${v.gps_status === 'online' ? 'sp-ok' : 'vs-warn'}">${(v.gps_status || 'unknown').toUpperCase()}</span></td><td>${v.age || '—'}y</td><td style="color:var(--accent3);font-size:.72rem;">Compliance Agent</td>`;
+        groundedTbody.appendChild(tr);
+      });
+    }
+  }
 }
 
 // Load incident queue from API
@@ -333,7 +367,7 @@ async function initCharts() {
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } }
+        plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 10, font: { size: 11 } } } }
       }
     });
   }
@@ -557,6 +591,7 @@ function getEventTag(scenarioId, queryText = "") {
   if (scenarioId === 1) return "Missing Guardian";
   if (scenarioId === 2) return "Pre-Trip Compliance";
   if (scenarioId === 3) return "Executive Summary";
+  if (scenarioId === 4) return "Pre-Departure Check";
   
   const q = queryText.toLowerCase();
   if (q.includes("distract") || q.includes("phone") || q.includes("seatbelt") || q.includes("mobile")) {
@@ -659,10 +694,11 @@ async function runScenario(num) {
   scenarioRunning = true;
   
   document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('running'));
-  document.getElementById(`scenario-${num}`).classList.add('running');
-  
+  const scenarioCard = document.getElementById(`scenario-${num}`);
+  if (scenarioCard) scenarioCard.classList.add('running');
+
   const conv = document.getElementById('agent-conversation');
-  conv.innerHTML = '';
+  if (conv) conv.innerHTML = '';
   const monitor = document.getElementById('agent-monitor');
   monitor.innerHTML = '';
   
@@ -676,7 +712,8 @@ async function runScenario(num) {
     "System Event: Driver using mobile device via cabin camera on Bus AU-BUS-105.",
     "Webhook Alert: Guardian not present at stop #4 for Bus AU-BUS-102. Student retained.",
     "Pre-trip compliance check failed. Braking pressure below ADEK safety threshold for Bus AU-BUS-104.",
-    "System trigger: Generate Executive C-Level Summary of platform metrics."
+    "System trigger: Generate Executive C-Level Summary of platform metrics.",
+    "Pre-departure check: Driver DRV-4412 starting vehicle AU-BUS-105. Verify permit, medical, and training compliance before departure."
   ];
   const payload = demoPayloads[num] || "";
 
@@ -735,10 +772,11 @@ async function runScenario(num) {
 
     if (idx >= messages.length) {
       scenarioRunning = false;
-      document.getElementById(`scenario-${num}`).classList.remove('running');
+      if (scenarioCard) scenarioCard.classList.remove('running');
       badge.textContent = '✓ Workflow Complete';
       badge.style.background = 'rgba(16,185,129,.2)';
       badge.style.color = '#34d399';
+      if (scenarioCard) scenarioCard.classList.remove('running');
       return;
     }
 
@@ -774,13 +812,19 @@ async function runScenario(num) {
         ⚡ Action Executed: ${msg.action}
       </div>` : '';
 
+    // Ground vehicle pill — shown when compliance agent outputs GROUND_VEHICLE: YES
+    const groundPill = (msg.text && /GROUND_VEHICLE:\s*YES/i.test(msg.text)) ? `
+      <div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.35);border-radius:20px;padding:.25rem .75rem;font-size:.72rem;font-weight:700;color:#f87171;margin-top:.4rem;margin-left:.4rem;">
+        🚨 Vehicle Grounded
+      </div>` : '';
+
     content.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
         <span style="font-weight:700;font-size:.85rem;color:${cfg.accent};">${msg.agent} <span style="font-size:.7rem;color:var(--text3);margin-left:8px;">${fullTag}</span></span>
         <span style="font-size:.72rem;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:.2rem .6rem;">🛠️ ${msg.tool}</span>
       </div>
       <div style="font-size:.84rem;line-height:1.6;color:var(--text1);">${msg.text}</div>
-      ${actionPill}
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;">${actionPill}${groundPill}</div>
       ${idx < messages.length - 1 ? `<div style="font-size:.72rem;color:var(--text3);margin-top:.6rem;">↳ Handing off to next agent…</div>` : '<div style="font-size:.72rem;color:#34d399;margin-top:.6rem;font-weight:600;">✓ Workflow Completed</div>'}
     `;
 
@@ -808,26 +852,32 @@ function getFallbackHistory(num) {
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
       { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds.', tool: 'Cabin Camera Edge Sensor, Incident MCP', action: 'Flagged unsafe cabin behavior (distraction).' },
-      { agent: 'Compliance Agent', text: '✅ Checked permit registry via PASS MCP. Driver Yousef Hassan (DRV-4412) has 3 previous compliance warnings.', tool: 'Driver Database, PASS MCP', action: 'Initiated driver violation threshold check.' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] Safety Risk: High · Evidence Confidence: 94% · Driver DRV-4412 (Yousef Hassan): 4 prior incidents — REPEAT OFFENDER. ADEK Reg 4.2.1 (Mobile Device Use While Driving) violated. ACTION: SUSPEND. GROUND_VEHICLE: NO. Permit suspended & synced to ADEK Gov Portal.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Suspended DRV-4412 & synced with ADEK Gov Portal' },
       { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882.', tool: 'Notification MCP, Incident Database', action: 'Auto-logged incident ticket INC-2026-882.' },
       { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%.', tool: 'Analytics MCP', action: 'Updated safety scorecard metrics.' }
     ],
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
       { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Route Supervisor SOP App', action: 'Activated student retention safety protocol.' },
-      { agent: 'Compliance Agent', text: '📚 RAG Query: "guardian handover rules". Result: Pupil must be retained.', tool: 'Shared Policy RAG (ChromaDB)', action: 'Verified ADEK guardian handover guidelines.' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] RAG: ADEK Reg 14.2 — students under Grade 3 must not be left unattended at drop-off. Driver DRV-2089: 1 prior incident (first offence, low risk). ACTION: ASSIGN_TRAINING. GROUND_VEHICLE: NO. Remedial training assigned, ADEK notified.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Assigned training to DRV-2089 & notified ADEK' },
       { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: Student remains safely on bus.', tool: 'Notification MCP, Incident Database', action: 'Sent automated SMS notification to registered parent.' }
     ],
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Route Optimization Agent.' },
-      { agent: 'Compliance Agent', text: '❌ Pre-trip checklist failure: Bus AU-BUS-104 reported low brake pressure.', tool: 'Fleet MCP, Pre-trip Forms', action: 'Flagged low brake pressure mechanical hazard.' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] ADEK Fleet Rule 9.1 — pre-trip inspection failure. Vehicle AU-BUS-104: inspection_status=FAILED, GPS=offline. Driver first offence. ACTION: ASSIGN_TRAINING. GROUND_VEHICLE: YES. Vehicle grounded, training SLA assigned to driver.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Grounded AU-BUS-104 & assigned training SLA' },
       { agent: 'Incident Agent', text: '🗺️ Recalculated backup routing. Dispatching standby bus AU-BUS-106.', tool: 'Route Optimization MCP', action: 'Dynamically recalculated alternative bus route corridor.' }
     ],
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Executive Agent.' },
-      { agent: 'Compliance Agent', text: '✅ Querying weekly violation logs. 18 driver training renewals missed during Ramadan shift adjustments.', tool: 'Driver MCP, Policy RAG', action: 'Aggregated shift logs and certification statuses.' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] Weekly SLA audit: 18 pending training SLAs (3 overdue → auto-suspend triggered). 5 drivers flagged as repeat offenders (3+ incidents). Vehicle fleet: 1 grounded (inspection failed). ROUTE: executive.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'SLA audit complete — 3 auto-suspensions triggered' },
       { agent: 'Incident Agent', text: '🚨 Incident correlation: High incident volumes matched with newer routes launched.', tool: 'Incident MCP', action: 'Mapped launching incident rates to route density.' },
       { agent: 'Executive Agent', text: '📊 Synthesizing executive report.', tool: 'Analytics MCP', action: 'Compiled strategic ADEK executive brief.' }
+    ],
+    [
+      { agent: 'Supervisor Agent', text: '🧠 Pre-departure check initiated for DRV-4412 on AU-BUS-105. Running deterministic compliance gate before LLM pipeline.', tool: 'LangGraph State Router', action: 'Routed to Compliance Agent — Pre-departure gate.' },
+      { agent: 'Compliance Agent', text: '🚫 [Pre-Departure FAILED] Driver DRV-4412 (Yousef Hassan) · Permit: Suspended · Medical: Expired · Training: Failed Evaluation. ADEK Operator Reg 3.1 — driver banned immediately. Permit status set to Suspended, ADEK Gov Portal synced.', tool: 'mcp_update_driver_status + mcp_sync_permit_status_with_gov + mcp_find_available_driver', action: 'Banned DRV-4412 — synced with ADEK Gov Portal' },
+      { agent: 'Compliance Agent', text: '🔄 Replacement driver search: Found DRV-1024 (Zayed Al Mansoori, Emirates Transport) — fully compliant. Permit: Valid · Medical: Passed · Training: Complete. Route AU-BUS-105 re-assigned. Departure cleared.', tool: 'mcp_find_available_driver', action: 'Replacement DRV-1024 allocated to AU-BUS-105' },
+      { agent: 'Incident Agent', text: '🚨 Incident ticket INC-2026-PRE-001 created. Operator Emirates Transport notified. Replacement driver dispatched. Route delay: ~8 minutes.', tool: 'Incident MCP + Notification MCP', action: 'Auto-logged pre-departure violation — operator notified.' }
     ]
   ];
   return history[num] || [];
@@ -960,7 +1010,8 @@ async function loadComplianceData() {
   if (fines && fines.length) {
     const tbody = document.getElementById('fines-tbody');
     const badge = document.getElementById('fines-count-badge');
-    if (badge) badge.textContent = `${fines.length} records`;
+    const totalAed = fines.reduce((sum, f) => sum + (f.amount || 0), 0);
+    if (badge) badge.textContent = `${fines.length} fines · AED ${totalAed.toLocaleString()}`;
     if (tbody) {
       tbody.innerHTML = '';
       fines.forEach(f => {
@@ -971,21 +1022,25 @@ async function loadComplianceData() {
     }
   }
 
-  // SLAs list
-  if (slas && slas.length) {
-    const slaList = document.getElementById('sla-list');
-    const badge = document.getElementById('sla-count-badge');
-    if (badge) badge.textContent = `${slas.length} pending`;
-    if (document.getElementById('ck-slas')) document.getElementById('ck-slas').textContent = slas.length;
-    if (slaList) {
-      slaList.innerHTML = '';
-      slas.forEach(s => {
-        const item = document.createElement('div');
-        item.className = 'veh-item';
-        item.innerHTML = `<span class="veh-plate">${s.driver_id}</span><span>Deadline: ${s.deadline_date.split('T')[0]}</span><span class="veh-status vs-warn">${s.status}</span>`;
-        slaList.appendChild(item);
-      });
-    }
+  // SLAs list — use mock fallback if API returns nothing
+  const slaData = (slas && slas.length) ? slas : MOCK_SLAS;
+  const slaList = document.getElementById('sla-list');
+  const slaBadge = document.getElementById('sla-count-badge');
+  const overdueCount = slaData.filter(s => s.status === 'Overdue' || (s.deadline_date && new Date(s.deadline_date) < new Date())).length;
+  if (slaBadge) slaBadge.textContent = `${slaData.length} active · ${overdueCount} overdue`;
+  if (document.getElementById('ck-slas')) document.getElementById('ck-slas').textContent = slaData.length;
+  if (slaList) {
+    slaList.innerHTML = '';
+    slaData.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'veh-item';
+      const isOverdue = s.status === 'Overdue' || (s.deadline_date && new Date(s.deadline_date) < new Date());
+      const deadline = s.deadline_date.split('T')[0];
+      const daysLeft = Math.ceil((new Date(s.deadline_date) - new Date()) / (1000 * 60 * 60 * 24));
+      const daysLabel = isOverdue ? `<span style="color:#f87171;font-size:.68rem;">${Math.abs(daysLeft)}d overdue</span>` : `<span style="color:#fbbf24;font-size:.68rem;">${daysLeft}d left</span>`;
+      item.innerHTML = `<span class="veh-plate">${s.driver_id}</span><span style="font-size:.75rem;">Due ${deadline} ${daysLabel}</span><span class="veh-status ${isOverdue ? 'vs-bad' : 'vs-warn'}">${s.status}</span>`;
+      slaList.appendChild(item);
+    });
   }
 
   // Boardings table
@@ -1066,6 +1121,45 @@ async function runCustomQuery() {
   }
   nextStep();
   input.value = '';
+}
+
+// --- DRIVER TABLE FILTER ---
+function filterDriverTable() {
+  const q = (document.getElementById('driver-search').value || '').toLowerCase();
+  document.querySelectorAll('#driver-tbody tr:not(.driver-detail-row)').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  // Also hide any open detail rows
+  document.querySelectorAll('.driver-detail-row').forEach(r => r.remove());
+}
+
+// --- DRIVER ROW EXPAND ---
+function showDriverDetail(tr, drv, incCount) {
+  // Remove any existing detail row
+  const existing = tr.nextSibling;
+  if (existing && existing.classList && existing.classList.contains('driver-detail-row')) {
+    existing.remove();
+    tr.style.background = '';
+    return;
+  }
+  document.querySelectorAll('.driver-detail-row').forEach(r => r.remove());
+  document.querySelectorAll('#driver-tbody tr').forEach(r => r.style.background = '');
+
+  tr.style.background = 'rgba(59,130,246,.08)';
+  const detail = document.createElement('tr');
+  detail.className = 'driver-detail-row';
+  const riskColor = drv.is_repeat_offender || incCount >= 3 ? '#ef4444' : incCount >= 1 ? '#f59e0b' : '#10b981';
+  const riskLabel = drv.is_repeat_offender || incCount >= 3 ? 'HIGH — Repeat Offender' : incCount >= 1 ? 'MEDIUM' : 'LOW';
+  detail.innerHTML = `
+    <td colspan="7" style="background:var(--bg3);padding:.75rem 1rem;font-size:.78rem;border-left:3px solid ${riskColor};">
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;">
+        <div><strong style="color:var(--text2)">Operator</strong><br>${drv.operator || '—'}</div>
+        <div><strong style="color:var(--text2)">Prior Incidents</strong><br><span style="color:${riskColor};font-weight:700">${incCount}</span></div>
+        <div><strong style="color:var(--text2)">Risk Profile</strong><br><span style="color:${riskColor};font-weight:700">${riskLabel}</span></div>
+        <div><strong style="color:var(--text2)">Compliance Agent Action</strong><br>${drv.permit_status === 'Suspended' ? '🔴 Suspended by Compliance Agent' : incCount >= 1 ? '🟡 Training SLA assigned' : '🟢 Compliant — No action required'}</div>
+      </div>
+    </td>`;
+  tr.after(detail);
 }
 
 // Window load init

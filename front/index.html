@@ -212,12 +212,15 @@
       </div>
       <div class="two-col">
         <div class="card">
-          <div class="card-header"><span class="card-title">👤 Driver Compliance Table</span></div>
+          <div class="card-header"><span class="card-title">👤 Driver Compliance Table</span><span class="badge badge-blue" id="driver-count-badge">—</span></div>
+          <div style="margin-bottom:.6rem;">
+            <input type="text" id="driver-search" placeholder="🔍  Filter by Driver ID, name, or operator…" oninput="filterDriverTable()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:.5rem .9rem;color:var(--text);font-family:'Inter',sans-serif;font-size:.82rem;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" />
+          </div>
           <div class="data-table-wrap">
             <table class="data-table" id="driver-table">
               <thead>
                 <tr>
-                  <th>Driver ID</th><th>Name</th><th>Permit</th><th>Medical</th><th>Training</th><th>Status</th>
+                  <th>Driver ID</th><th>Name</th><th>Permit</th><th>Medical</th><th>Training</th><th>Incidents</th><th>Status</th>
                 </tr>
               </thead>
               <tbody id="driver-tbody"></tbody>
@@ -261,6 +264,15 @@
             <button id="rag-submit" onclick="runRAGQuery()">Query Policy</button>
           </div>
           <div class="rag-result" id="rag-result"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span class="card-title">🚨 Grounded Vehicles</span><span class="badge badge-red" id="grounded-count-badge">—</span></div>
+        <div class="data-table-wrap">
+          <table class="data-table" id="grounded-table">
+            <thead><tr><th>Vehicle ID</th><th>Plate</th><th>Inspection</th><th>GPS</th><th>Age (yrs)</th><th>Grounded By</th></tr></thead>
+            <tbody id="grounded-tbody"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -335,8 +347,70 @@
           <h1 class="section-title">Agentic AI · Workflow Engine</h1>
           <p class="section-sub">Autonomous incident triage · A2A handoffs · MCP tool execution · LangGraph orchestration</p>
         </div>
+        <div class="header-badges">
+          <span class="badge badge-purple">LangGraph</span>
+          <span class="badge badge-green">7 Agents Live</span>
+        </div>
       </div>
 
+      <!-- SCENARIO CARDS -->
+      <div class="scenario-grid">
+        <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
+          <span class="sc-num">#01</span>
+          <div class="sc-icon">📱</div>
+          <div class="sc-title">Mobile Phone Distraction</div>
+          <div class="sc-desc">Driver DRV-4412 · Cabin camera · Repeat offender</div>
+          <div class="sc-result">ADEK Reg 4.2.1 — Driver Suspended</div>
+          <button class="sc-btn">▶ Run Scenario</button>
+        </div>
+        <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
+          <span class="sc-num">#02</span>
+          <div class="sc-icon">👨‍👦</div>
+          <div class="sc-title">Missing Guardian</div>
+          <div class="sc-desc">Bus AU-BUS-102 · Stop #4 · Grade 2 student</div>
+          <div class="sc-result">ADEK Reg 14.2 — Training Assigned</div>
+          <button class="sc-btn">▶ Run Scenario</button>
+        </div>
+        <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
+          <span class="sc-num">#03</span>
+          <div class="sc-icon">🚨</div>
+          <div class="sc-title">Pre-Trip Inspection Fail</div>
+          <div class="sc-desc">Bus AU-BUS-104 · Braking failure · GPS offline</div>
+          <div class="sc-result">Fleet Rule 9.1 — Vehicle Grounded</div>
+          <button class="sc-btn">▶ Run Scenario</button>
+        </div>
+        <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
+          <span class="sc-num">#04</span>
+          <div class="sc-icon">📊</div>
+          <div class="sc-title">Executive C-Level Report</div>
+          <div class="sc-desc">Weekly KPI brief · SLA audit · Risk matrix</div>
+          <div class="sc-result">Executive Agent — Board Summary</div>
+          <button class="sc-btn">▶ Run Scenario</button>
+        </div>
+        <div class="scenario-card" id="scenario-4" onclick="runScenario(4)">
+          <span class="sc-num">#05</span>
+          <div class="sc-icon">🚫</div>
+          <div class="sc-title">Pre-Departure Driver Check</div>
+          <div class="sc-desc">Driver starts vehicle · Expired permit detected · Auto-banned</div>
+          <div class="sc-result">Operator Reg 3.1 — Banned + Replacement Allocated</div>
+          <button class="sc-btn">▶ Run Scenario</button>
+        </div>
+      </div>
+
+      <!-- CUSTOM EVENT INPUT -->
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card-header">
+          <span class="card-title">💬 Custom Event — Free Text</span>
+          <span class="badge badge-purple">Live API</span>
+        </div>
+        <div class="rag-query-box">
+          <input type="text" id="custom-agent-query" placeholder="Describe any transport event… e.g. 'Bus AU-BUS-201 exceeded school zone speed limit on route AU-55'" />
+          <button onclick="runCustomQuery()">Run Agent</button>
+        </div>
+        <div class="agent-conversation" id="agent-conversation" style="margin-top:.75rem;min-height:60px;">
+          <div class="conv-placeholder">Run a scenario above or type a custom event to see the multi-agent workflow trace.</div>
+        </div>
+      </div>
 
       <!-- Workflow Execution Trace -->
       <div class="card" id="workflow-trace-card" style="display:none;">
