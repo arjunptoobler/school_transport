@@ -100,17 +100,6 @@
         </div>
       </div>
 
-      <!-- LIVE AI EVIDENCE -->
-      <div class="card" style="margin-bottom: 1.5rem; border-color: var(--accent2);">
-        <div class="card-header" style="border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 0;">
-          <span class="card-title">👁️ Live AI Evidence Feed</span>
-          <span class="badge badge-purple">Edge AI Processing</span>
-        </div>
-        <div class="evidence-container" style="padding: 1rem; text-align: center; background: var(--bg3); border-radius: 0 0 12px 12px;">
-          <img src="evidence.png" alt="AI Agent live camera analysis" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.5);" />
-          <p style="margin-top: 0.75rem; color: var(--text2); font-size: 0.9rem; font-weight: 500;">Safety Agent detecting driver mobile phone usage and validating student seatbelts in real-time.</p>
-        </div>
-      </div>
 
       <!-- SECOND ROW: Live Feed + Agent Activity -->
       <div class="two-col">
@@ -348,47 +337,6 @@
         </div>
       </div>
 
-      <!-- Trigger panel: scenarios + custom event -->
-      <div class="card" style="margin-bottom:1.25rem;">
-        <div class="card-header">
-          <span class="card-title">⚡ Trigger an Incident Workflow</span>
-          <span class="badge badge-purple">Event-Driven · Headless Supervisor</span>
-        </div>
-        <div class="scenario-grid" style="margin-bottom:1rem;">
-          <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
-            <div class="sc-num">01</div>
-            <div class="sc-icon">📱</div>
-            <div class="sc-title">Driver Mobile Usage</div>
-            <div class="sc-desc">Camera detects phone · Safety triage · Evidence sealed · Permit suspended · Gov sync</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
-            <div class="sc-num">02</div>
-            <div class="sc-icon">👨‍👩‍👧</div>
-            <div class="sc-title">Missing Guardian</div>
-            <div class="sc-desc">Student retained · RAG policy lookup · Parent SMS dispatched · Incident ticket created</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
-            <div class="sc-num">03</div>
-            <div class="sc-icon">🔧</div>
-            <div class="sc-title">Inspection Failure</div>
-            <div class="sc-desc">Bus grounded · Detour calculated · Schedule pushed · ETA broadcast to parents</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
-            <div class="sc-num">04</div>
-            <div class="sc-icon">📉</div>
-            <div class="sc-title">Executive KPI Summary</div>
-            <div class="sc-desc">Compliance audit · SLA checks · Risk matrix · Board-ready narrative generated</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-        </div>
-        <div class="rag-query-box">
-          <input type="text" id="custom-agent-query" placeholder="Or inject a raw system event: e.g. 'GPS deviation on Bus AU-BUS-140' or 'Harsh braking detected on route 12'" />
-          <button onclick="runCustomQuery()">Inject Event →</button>
-        </div>
-      </div>
 
       <!-- Workflow Execution Trace -->
       <div class="card" id="workflow-trace-card" style="display:none;">

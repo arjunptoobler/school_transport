@@ -36,7 +36,7 @@ def supervisor_agent(state: AgentState) -> dict:
         next_step = cleaned
     else:
         ep = event_payload.lower()
-        if "seatbelt" in ep or "distraction" in ep or "speeding" in ep or "safety" in ep:
+        if "seatbelt" in ep or "distraction" in ep or "speeding" in ep or "safety" in ep or "mobile" in ep or "phone" in ep or "device" in ep or "camera" in ep:
             next_step = "safety"
         elif "collision" in ep or "telemetry" in ep or "brake" in ep:
             next_step = "evidence"
