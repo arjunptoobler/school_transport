@@ -67,11 +67,7 @@ const MOCK_VEHICLES = [
   { vehicle_id: 'AU-BUS-105', license_plate: 'AD 90912', age: 9, gps_status: 'online', inspection_status: 'valid' }
 ];
 
-const MOCK_INCIDENTS = [
-  { incident_id: 'INC-2026-882', severity: 'high', type: 'Driver Distraction', driver_id: 'DRV-4412', vehicle_id: 'AU-BUS-105', timestamp: '10 mins ago', description: 'Safety Agent detected driver using mobile device via cabin camera.' },
-  { incident_id: 'INC-2026-881', severity: 'med', type: 'Missing Guardian', driver_id: 'DRV-2089', vehicle_id: 'AU-BUS-102', timestamp: '25 mins ago', description: 'No guardian present at Handover Point 4. Student retained on vehicle.' },
-  { incident_id: 'INC-2026-880', severity: 'med', type: 'Inspection Failure', driver_id: 'DRV-3041', vehicle_id: 'AU-BUS-104', timestamp: '1 hour ago', description: 'Pre-trip compliance check failed. Braking pressure below ADEK safety threshold.' }
-];
+const MOCK_INCIDENTS = [];
 
 // Load driver/vehicle tables from API
 async function loadFleetData() {
@@ -188,41 +184,37 @@ async function selectIncident(inc) {
         <div><strong>Status:</strong> ${inc.status || 'Detected'}</div>
       </div>
       ${evidenceHtml}
-      <div class="ai-thinking" style="margin-top:1rem"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Running multi-agent analysis via LangGraph...</div>
+      <div class="ai-thinking" style="margin-top:1rem"><span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span> Fetching incident audit trail...</div>
     </div>`;
 
-  // Call real agent API with incident context
-  const query = `Analyze incident ${inc.incident_id}: ${inc.type} involving driver ${inc.driver_id} on vehicle ${inc.vehicle_id}. ${inc.description}`;
-  const res = await apiFetch('/agents/run_scenario', {
-    method: 'POST',
-    body: JSON.stringify({ scenario_id: 99, event_payload: query })
-  });
+  // Fetch audit log
+  const res = await apiFetch(`/incidents/${inc.incident_id}/audit`);
+  const logs = (res && res.success && res.audit_log) ? res.audit_log : [];
 
-  // Reload incident database to capture the agent's resolution update
-  await loadIncidentsData();
-  const updatedInc = activeIncidents.find(i => i.incident_id === inc.incident_id) || inc;
-
-  const messages = (res && res.success) ? res.history : [{ agent: 'Supervisor Agent', text: 'Analysis pipeline coordinated.', tool: 'LangGraph' }];
   let flowHtml = '';
-  messages.forEach((msg, idx) => {
-    const cls = idx === messages.length - 1 ? 'fs-active' : 'fs-done';
-    flowHtml += `<div class="flow-step ${cls}"><span class="fs-icon">${getAgentIcon(msg.agent)}</span><div><strong>${msg.agent}</strong><div style="font-size:.75rem;color:var(--text2)">${msg.text}</div><div style="font-size:.65rem;color:var(--accent1);margin-top:2px">🛠️ ${msg.tool}</div></div></div>`;
-  });
+  if (logs.length === 0) {
+    flowHtml = `<div style="font-size:.8rem;color:var(--text2);padding:1rem;">No agent actions recorded for this incident yet.</div>`;
+  } else {
+    logs.forEach((log, idx) => {
+      const cls = idx === logs.length - 1 ? 'fs-active' : 'fs-done';
+      flowHtml += `<div class="flow-step ${cls}"><span class="fs-icon">${getAgentIcon(log.agent)}</span><div><strong>${log.agent}</strong><div style="font-size:.75rem;color:var(--text2)">${log.action}</div><div style="font-size:.65rem;color:var(--accent1);margin-top:2px">🛠️ ${log.detail}</div><div style="font-size:.6rem;color:var(--text3);margin-top:4px">${log.timestamp.replace('T', ' ').substring(0, 19)}</div></div></div>`;
+    });
+  }
 
   detail.innerHTML = `
     <div class="card-header">
-      <span class="card-title">🚨 ${updatedInc.type} — ${updatedInc.incident_id}</span>
-      <span class="sev-badge sev-${updatedInc.severity}">${updatedInc.severity.toUpperCase()}</span>
+      <span class="card-title">🚨 ${inc.type} — ${inc.incident_id}</span>
+      <span class="sev-badge sev-${inc.severity}">${inc.severity.toUpperCase()}</span>
     </div>
     <div class="incident-detail-content">
-      <p style="color:var(--text2);margin-bottom:.5rem">${updatedInc.description}</p>
+      <p style="color:var(--text2);margin-bottom:.5rem">${inc.description}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
-        <div><strong>Driver:</strong> ${updatedInc.driver_id}</div>
-        <div><strong>Vehicle:</strong> ${updatedInc.vehicle_id}</div>
-        <div><strong>Status:</strong> <span class="status-pill ${updatedInc.status === 'Resolved' ? 'vs-ok' : 'vs-bad'}">${updatedInc.status || 'Detected'}</span></div>
+        <div><strong>Driver:</strong> ${inc.driver_id}</div>
+        <div><strong>Vehicle:</strong> ${inc.vehicle_id}</div>
+        <div><strong>Status:</strong> <span class="status-pill ${inc.status === 'Resolved' ? 'vs-ok' : 'vs-bad'}">${inc.status || 'Detected'}</span></div>
       </div>
       ${evidenceHtml}
-      <strong style="font-size:.8rem;display:block;margin-top:.5rem">🤖 Live Multi-Agent Analysis (${messages.length} steps):</strong>
+      <strong style="font-size:.8rem;display:block;margin-top:.5rem">🤖 Immutable Agent Audit Trail (${logs.length} actions):</strong>
       <div class="agent-flow-viz">${flowHtml}</div>
     </div>`;
 }
@@ -463,12 +455,7 @@ setInterval(() => {
 }, 2000);
 
 // --- ALERTS AND FEED ---
-const LIVE_ALERTS = [
-  { type: 'info', text: 'Route AU-402 started successfully.' },
-  { type: 'ok', text: 'Driver Zayed Al Mansoori completed pre-trip verification.' },
-  { type: 'warn', text: 'Bus AU-BUS-104 report: Air conditioning output degrading.' },
-  { type: 'crit', text: 'Bus AU-BUS-105: Cabin camera safety flag triggered.' }
-];
+const LIVE_ALERTS = [];
 
 function addAlertItem(alert) {
   const feed = document.getElementById('alert-feed');
@@ -498,69 +485,116 @@ async function runScenario(num) {
   
   resetDiagramHighlights();
   
+  // --- Workflow Trace Renderer ---
+  const demoPayloads = [
+    "System Event: Driver using mobile device via cabin camera on Bus AU-BUS-105.",
+    "Webhook Alert: Guardian not present at stop #4 for Bus AU-BUS-102. Student retained.",
+    "Pre-trip compliance check failed. Braking pressure below ADEK safety threshold for Bus AU-BUS-104.",
+    "System trigger: Generate Executive C-Level Summary of platform metrics."
+  ];
+  const payload = demoPayloads[num] || "";
+
+  // Show and reset the trace card
+  const traceCard = document.getElementById('workflow-trace-card');
+  const stepsDiv = document.getElementById('workflow-steps');
+  const badge = document.getElementById('workflow-status-badge');
+  traceCard.style.display = 'block';
+  stepsDiv.innerHTML = '';
+  badge.textContent = 'Running…';
+  badge.style.background = 'rgba(59,130,246,.2)';
+  badge.style.color = '#60a5fa';
+  document.getElementById('workflow-event-text').textContent = payload;
+  traceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   // Call API Endpoint
   const res = await apiFetch("/agents/run_scenario", {
     method: "POST",
-    body: JSON.stringify({ scenario_id: num })
+    body: JSON.stringify({ scenario_id: num, event_payload: payload })
   });
-  
+
   const messages = (res && res.success) ? res.history : getFallbackHistory(num);
+
+  // Agent colour config
+  const agentConfig = {
+    'Supervisor': { icon: '🧠', accent: '#8b5cf6', bg: 'rgba(139,92,246,.08)', border: 'rgba(139,92,246,.25)' },
+    'Safety':     { icon: '🛡️', accent: '#f59e0b', bg: 'rgba(245,158,11,.08)', border: 'rgba(245,158,11,.25)' },
+    'Evidence':   { icon: '👁️', accent: '#06b6d4', bg: 'rgba(6,182,212,.08)',   border: 'rgba(6,182,212,.25)' },
+    'Compliance': { icon: '✅', accent: '#10b981', bg: 'rgba(16,185,129,.08)', border: 'rgba(16,185,129,.25)' },
+    'Route':      { icon: '🗺️', accent: '#f97316', bg: 'rgba(249,115,22,.08)', border: 'rgba(249,115,22,.25)' },
+    'Fleet':      { icon: '🚌', accent: '#3b82f6', bg: 'rgba(59,130,246,.08)', border: 'rgba(59,130,246,.25)' },
+    'Incident':   { icon: '🚨', accent: '#ef4444', bg: 'rgba(239,68,68,.08)',   border: 'rgba(239,68,68,.25)' },
+    'Executive':  { icon: '📊', accent: '#a78bfa', bg: 'rgba(167,139,250,.08)', border: 'rgba(167,139,250,.25)' },
+  };
+
+  function getConfig(agentName) {
+    for (const [key, cfg] of Object.entries(agentConfig)) {
+      if (agentName.includes(key)) return cfg;
+    }
+    return { icon: '🤖', accent: '#6b7280', bg: 'rgba(107,114,128,.08)', border: 'rgba(107,114,128,.25)' };
+  }
+
   let idx = 0;
-  
   function nextStep() {
     if (idx >= messages.length) {
       scenarioRunning = false;
       document.getElementById(`scenario-${num}`).classList.remove('running');
+      badge.textContent = '✓ Workflow Complete';
+      badge.style.background = 'rgba(16,185,129,.2)';
+      badge.style.color = '#34d399';
       return;
     }
-    
+
     const msg = messages[idx];
-    const mDiv = document.createElement('div');
-    mDiv.className = 'conv-msg';
-    
-    let actionHTML = '';
-    if (msg.action) {
-      actionHTML = `<div class="conv-action-taken">⚡ Action: ${msg.action}</div>`;
-    }
-    
-    mDiv.innerHTML = `
-      <span class="conv-agent">${msg.agent}</span>
-      <div class="conv-text">${msg.text}</div>
-      ${actionHTML}
-      <div class="conv-tool">🛠️ ${msg.tool}</div>
+    const cfg = getConfig(msg.agent);
+    const isLast = idx === messages.length - 1;
+
+    const step = document.createElement('div');
+    step.style.cssText = `display:flex;gap:0;opacity:0;transform:translateY(8px);transition:all .4s ease;`;
+
+    // Connector line + node circle
+    const connector = document.createElement('div');
+    connector.style.cssText = `display:flex;flex-direction:column;align-items:center;width:48px;flex-shrink:0;`;
+    connector.innerHTML = `
+      <div style="width:36px;height:36px;border-radius:50%;background:${cfg.bg};border:2px solid ${cfg.accent};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;box-shadow:0 0 12px ${cfg.accent}44;">${cfg.icon}</div>
+      ${!isLast ? `<div style="width:2px;flex:1;min-height:20px;background:linear-gradient(to bottom,${cfg.accent}88,transparent);margin-top:4px;"></div>` : ''}
     `;
-    conv.appendChild(mDiv);
-    conv.scrollTop = conv.scrollHeight;
-    
-    const monitorItem = document.createElement('div');
-    let badgeClass = 'ab-supervisor';
-    if (msg.agent.includes('Compliance')) badgeClass = 'ab-compliance';
-    if (msg.agent.includes('Safety')) badgeClass = 'ab-safety';
-    if (msg.agent.includes('Incident')) badgeClass = 'ab-incident';
-    if (msg.agent.includes('Executive')) badgeClass = 'ab-executive';
-    if (msg.agent.includes('Route')) badgeClass = 'ab-route';
-    if (msg.agent.includes('Fleet')) badgeClass = 'ab-fleet';
-    
-    monitorItem.className = 'agent-item';
-    
-    let monitorActionHTML = '';
-    if (msg.action) {
-      monitorActionHTML = `<div style="font-size:0.75rem; color:#10b981; font-weight:700; margin-top:3px;">⚡ Action: ${msg.action}</div>`;
-    }
-    
-    monitorItem.innerHTML = `
-      <span class="agent-badge ${badgeClass}">${msg.agent}</span>
-      <div>${msg.text}</div>
-      ${monitorActionHTML}
+
+    // Step content
+    const content = document.createElement('div');
+    content.style.cssText = `flex:1;background:${cfg.bg};border:1px solid ${cfg.border};border-radius:10px;padding:1rem 1.1rem;margin-bottom:${isLast?'0':'12px'};`;
+
+    // Action pill (if action was taken by an agent)
+    const actionPill = msg.action ? `
+      <div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);border-radius:20px;padding:.25rem .75rem;font-size:.72rem;font-weight:700;color:#34d399;margin-top:.6rem;">
+        ⚡ Action Executed: ${msg.action}
+      </div>` : '';
+
+    content.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+        <span style="font-weight:700;font-size:.85rem;color:${cfg.accent};">${msg.agent}</span>
+        <span style="font-size:.72rem;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:.2rem .6rem;">🛠️ ${msg.tool}</span>
+      </div>
+      <div style="font-size:.84rem;line-height:1.6;color:var(--text1);">${msg.text}</div>
+      ${actionPill}
+      ${idx < messages.length - 1 ? `<div style="font-size:.72rem;color:var(--text3);margin-top:.6rem;">↳ Handing off to next agent…</div>` : '<div style="font-size:.72rem;color:#34d399;margin-top:.6rem;font-weight:600;">✓ Workflow Completed</div>'}
     `;
-    monitor.prepend(monitorItem);
-    
+
+    step.appendChild(connector);
+    step.appendChild(content);
+    stepsDiv.appendChild(step);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      step.style.opacity = '1';
+      step.style.transform = 'translateY(0)';
+    });
+
+    stepsDiv.scrollTop = stepsDiv.scrollHeight;
     highlightDiagramNode(msg.agent);
-    
     idx++;
     setTimeout(nextStep, 1800);
   }
-  
+
   nextStep();
 }
 
@@ -595,9 +629,25 @@ function getFallbackHistory(num) {
 }
 
 function clearAgentLog() {
-  document.getElementById('agent-conversation').innerHTML = '<div class="conv-placeholder">Run a scenario or ask a question to see live agent-to-agent communication</div>';
-  document.getElementById('agent-monitor').innerHTML = '';
+  const traceCard = document.getElementById('workflow-trace-card');
+  const stepsDiv = document.getElementById('workflow-steps');
+  if (stepsDiv) stepsDiv.innerHTML = '';
+  if (traceCard) traceCard.style.display = 'none';
+  document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('running'));
   resetDiagramHighlights();
+  scenarioRunning = false;
+}
+
+function toggleArch() {
+  const wrapper = document.getElementById('arch-diagram-wrapper');
+  const icon = document.getElementById('arch-toggle-icon');
+  if (wrapper.style.display === 'none') {
+    wrapper.style.display = 'block';
+    icon.textContent = '▼ Hide';
+  } else {
+    wrapper.style.display = 'none';
+    icon.textContent = '▶ Show';
+  }
 }
 
 function resetDiagramHighlights() {
@@ -666,7 +716,7 @@ async function loadKPIs() {
   if (!data) return;
   const el = (id) => document.getElementById(id);
 
-  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = '2'; // Focused on human review
+  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = activeIncidents.length.toString();
   const incSub = document.querySelector('#kpi-incidents .kpi-sub');
   if (incSub) incSub.textContent = `Escalated by Supervisor Agent`;
   const incBar = document.querySelector('#kpi-incidents .kpi-fill');

@@ -1,5 +1,6 @@
 from .state import AgentState
 from ..mcp.base import mcp_registry
+from ..mcp.incident import batch_write_history_to_audit_log
 from ..database.connection import get_db_connection
 from .parser import extract_entities
 from .llm import call_gemini
@@ -54,15 +55,33 @@ def incident_agent(state: AgentState) -> dict:
             action_taken = f" (Action: Resolved {incident_id} in DB)"
         elif scenario == 0:
             text = "📝 [Incident Plan] Created INC-2026-901 for unsafe distraction. Fines queued. Notifying operator Emirates Transport."
-            mcp_registry.call_tool("mcp_create_incident", severity="high", type="Driver Distraction", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            res = mcp_registry.call_tool("mcp_create_incident", severity="high", type="Driver Distraction", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            if res and "incident_id" in res:
+                inc_id = res['incident_id']
+                batch_write_history_to_audit_log(inc_id, history)
+                mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
         elif scenario == 1:
             text = "📝 [Incident Plan] Created INC-2026-902 for protocol violation. Student safeguarded. Scheduling guardian follow-up."
-            mcp_registry.call_tool("mcp_create_incident", severity="med", type="Missing Guardian", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            res = mcp_registry.call_tool("mcp_create_incident", severity="med", type="Missing Guardian", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            if res and "incident_id" in res:
+                inc_id = res['incident_id']
+                batch_write_history_to_audit_log(inc_id, history)
+                mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
         elif scenario == 2:
             text = "📝 [Incident Plan] Created INC-2026-903 for vehicle compliance failure. Grounding bus AU-BUS-104."
-            mcp_registry.call_tool("mcp_create_incident", severity="high", type="Inspection Failure", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            res = mcp_registry.call_tool("mcp_create_incident", severity="high", type="Inspection Failure", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            if res and "incident_id" in res:
+                inc_id = res['incident_id']
+                batch_write_history_to_audit_log(inc_id, history)
+                mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
         else:
-            text = f"📝 [Incident Plan] Autonomous incident resolution logged and registered."
+            text = f"📝 [Incident Plan] Automated safety incident recorded due to edge trigger."
+            res = mcp_registry.call_tool("mcp_create_incident", severity="med", type="General Edge Alert", driver_id=driver_id, vehicle_id=vehicle_id, description=text)
+            if res and "incident_id" in res:
+                inc_id = res['incident_id']
+                action_taken = f" (Action: Created {inc_id} in DB)"
+                batch_write_history_to_audit_log(inc_id, history)
+                mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
     else:
         try:
             plan = re.search(r"PLAN:\s*(.*)", llm_msg, re.IGNORECASE).group(1).split("ACTION:")[0]
@@ -82,7 +101,11 @@ def incident_agent(state: AgentState) -> dict:
                     
                     res = mcp_registry.call_tool("mcp_create_incident", severity=sev, type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=plan.strip())
                     if res and "incident_id" in res:
-                        action_taken = f" (Action: Created {res['incident_id']} in DB)"
+                        inc_id = res['incident_id']
+                        action_taken = f" (Action: Created {inc_id} in DB)"
+                        batch_write_history_to_audit_log(inc_id, history)
+                        # Immediately update to Resolved as pipeline handled mitigation
+                        mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Autonomous mitigation plan executed.")
             
             text = f"📝 [Incident Plan] {plan.strip()}{action_taken}"
         except Exception as e:

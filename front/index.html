@@ -284,7 +284,6 @@
           <h1 class="section-title">Incident Center</h1>
           <p class="section-sub">AI-managed incident queue · Auto-escalation · Parent notifications</p>
         </div>
-        <button class="btn-primary" onclick="triggerNewIncident()">+ Simulate Incident</button>
       </div>
       <div class="incident-layout">
         <div class="card incident-queue-card">
@@ -345,99 +344,107 @@
     <section class="tab-section" id="section-agents">
       <div class="section-header">
         <div>
-          <h1 class="section-title">AI Agents · Live Demo</h1>
-          <p class="section-sub">Multi-agent orchestration · LangGraph · A2A Communication · MCP Tools</p>
+          <h1 class="section-title">Agentic AI · Workflow Engine</h1>
+          <p class="section-sub">Autonomous incident triage · A2A handoffs · MCP tool execution · LangGraph orchestration</p>
         </div>
       </div>
 
-      <!-- Architecture -->
-      <div class="card arch-card">
-        <div class="card-header"><span class="card-title">🏗️ Multi-Agent Architecture</span></div>
-        <div class="arch-diagram" id="arch-diagram">
-          <div class="arch-node arch-user" id="arch-user" style="background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:#fbbf24;">🏢 Existing Management System<br><small>Incident Event Stream</small></div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-node arch-supervisor" id="arch-supervisor">🧠 Supervisor Agent<br><small>LangGraph Orchestrator</small></div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-agents-row">
-            <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Camera · Edge AI</small></div>
-            <div class="arch-node arch-agent" id="arch-compliance">✅ Compliance<br><small>PASS · Policy RAG</small></div>
-            <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Route Engine</small></div>
-            <div class="arch-node arch-agent" id="arch-fleet">🚌 Fleet Monitor<br><small>GPS · Capacity</small></div>
-            <div class="arch-node arch-agent" id="arch-incident">🚨 Incident<br><small>Notification MCP</small></div>
-            <div class="arch-node arch-agent" id="arch-exec">📊 Executive<br><small>Analytics MCP</small></div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-node arch-rag" id="arch-rag">📚 Shared RAG Layer · ChromaDB · ADEK Regulations</div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-mcp-row">
-            <div class="arch-node arch-mcp">🔌 Policy MCP</div>
-            <div class="arch-node arch-mcp">🚌 Fleet MCP</div>
-            <div class="arch-node arch-mcp">👤 Driver MCP</div>
-            <div class="arch-node arch-mcp">📢 Notify MCP</div>
-            <div class="arch-node arch-mcp">🚨 Incident MCP</div>
-            <div class="arch-node arch-mcp">💰 Fines MCP</div>
-            <div class="arch-node arch-mcp">⏱️ SLA MCP</div>
-            <div class="arch-node arch-mcp">📡 Telemetry MCP</div>
-          </div>
+      <!-- Trigger panel: scenarios + custom event -->
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-header">
+          <span class="card-title">⚡ Trigger an Incident Workflow</span>
+          <span class="badge badge-purple">Event-Driven · Headless Supervisor</span>
         </div>
-      </div>
-
-      <!-- Demo Scenarios -->
-      <div class="card">
-        <div class="card-header"><span class="card-title">🎬 Live Demo Scenarios</span><span class="badge badge-blue">A2A Communication</span></div>
-        <div class="scenario-grid">
+        <div class="scenario-grid" style="margin-bottom:1rem;">
           <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
             <div class="sc-num">01</div>
             <div class="sc-icon">📱</div>
             <div class="sc-title">Driver Mobile Usage</div>
-            <div class="sc-desc">Supervisor → Safety → Compliance → Incident → Executive</div>
-            <div class="sc-result">Training assigned · Fine issued · Violation logged</div>
-            <button class="sc-btn">▶ Run Scenario</button>
+            <div class="sc-desc">Camera detects phone · Safety triage · Evidence sealed · Permit suspended · Gov sync</div>
+            <button class="sc-btn">▶ Run Workflow</button>
           </div>
           <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
             <div class="sc-num">02</div>
             <div class="sc-icon">👨‍👩‍👧</div>
             <div class="sc-title">Missing Guardian</div>
-            <div class="sc-desc">Supervisor → Safety → Compliance (RAG) → Incident</div>
-            <div class="sc-result">Student retained · Parent notified</div>
-            <button class="sc-btn">▶ Run Scenario</button>
+            <div class="sc-desc">Student retained · RAG policy lookup · Parent SMS dispatched · Incident ticket created</div>
+            <button class="sc-btn">▶ Run Workflow</button>
           </div>
           <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
             <div class="sc-num">03</div>
             <div class="sc-icon">🔧</div>
-            <div class="sc-title">Vehicle Inspection Fail</div>
-            <div class="sc-desc">Supervisor → Route Opt → Compliance → Incident</div>
-            <div class="sc-result">Vehicle grounded · Spare dispatched · Ticket filed</div>
-            <button class="sc-btn">▶ Run Scenario</button>
+            <div class="sc-title">Inspection Failure</div>
+            <div class="sc-desc">Bus grounded · Detour calculated · Schedule pushed · ETA broadcast to parents</div>
+            <button class="sc-btn">▶ Run Workflow</button>
           </div>
           <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
             <div class="sc-num">04</div>
             <div class="sc-icon">📉</div>
-            <div class="sc-title">Executive Analysis</div>
-            <div class="sc-desc">Supervisor → Compliance → Incident → Executive</div>
-            <div class="sc-result">Narrative report · Root cause analysis</div>
-            <button class="sc-btn">▶ Run Scenario</button>
+            <div class="sc-title">Executive KPI Summary</div>
+            <div class="sc-desc">Compliance audit · SLA checks · Risk matrix · Board-ready narrative generated</div>
+            <button class="sc-btn">▶ Run Workflow</button>
           </div>
         </div>
-      </div>
-
-      <!-- Manual Event Triggering -->
-      <div class="card">
-        <div class="card-header"><span class="card-title">🔌 Simulate Incoming Incident Event</span><span class="badge badge-purple">Supervisor Event Routing</span></div>
         <div class="rag-query-box">
-          <input type="text" id="custom-agent-query" placeholder="e.g. 'System Event: GPS deviation alert on route AU-102' or 'Webhook: Bus AU-BUS-140 inspection failure'" />
-          <button onclick="runCustomQuery()">Inject Event</button>
+          <input type="text" id="custom-agent-query" placeholder="Or inject a raw system event: e.g. 'GPS deviation on Bus AU-BUS-140' or 'Harsh braking detected on route 12'" />
+          <button onclick="runCustomQuery()">Inject Event →</button>
         </div>
       </div>
 
-      <!-- Agent Conversation Log -->
-      <div class="card">
+      <!-- Workflow Execution Trace -->
+      <div class="card" id="workflow-trace-card" style="display:none;">
         <div class="card-header">
-          <span class="card-title">💬 Agent Conversation Log</span>
-          <button class="btn-ghost" onclick="clearAgentLog()">Clear</button>
+          <span class="card-title">🔄 Live Workflow Execution Trace</span>
+          <div style="display:flex;gap:.5rem;align-items:center;">
+            <span id="workflow-status-badge" class="badge badge-blue">Running…</span>
+            <button class="btn-ghost" onclick="clearAgentLog()">✕ Clear</button>
+          </div>
         </div>
-        <div class="agent-conversation" id="agent-conversation">
-          <div class="conv-placeholder">Run a scenario or ask a question to see live agent-to-agent communication</div>
+        <!-- Event payload banner -->
+        <div id="workflow-event-banner" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#c4b5fd;">
+          <strong>📡 Incoming Event:</strong> <span id="workflow-event-text">—</span>
+        </div>
+        <!-- Step-by-step pipeline -->
+        <div id="workflow-steps" style="display:flex;flex-direction:column;gap:0;"></div>
+      </div>
+
+      <!-- Architecture reference (collapsed by default) -->
+      <div class="card">
+        <div class="card-header" style="cursor:pointer;" onclick="toggleArch()">
+          <span class="card-title">🏗️ Agent Architecture Reference</span>
+          <span id="arch-toggle-icon" style="color:var(--text3);font-size:.8rem;">▶ Show</span>
+        </div>
+        <div id="arch-diagram-wrapper" style="display:none;">
+          <div class="arch-diagram" id="arch-diagram">
+            <div class="arch-node arch-user" id="arch-user" style="background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:#fbbf24;">🏢 Existing Management System<br><small>Incident Event Stream</small></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node arch-supervisor" id="arch-supervisor">🧠 Supervisor Agent<br><small>LangGraph Orchestrator</small></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-agents-row">
+              <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Camera · Edge AI</small></div>
+              <div class="arch-node arch-agent" id="arch-compliance">✅ Compliance<br><small>RAG · Policy</small></div>
+              <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Detour · ETA</small></div>
+              <div class="arch-node arch-agent" id="arch-fleet">🚌 Fleet Monitor<br><small>GPS · Capacity</small></div>
+              <div class="arch-node arch-agent" id="arch-incident">🚨 Incident<br><small>Notification MCP</small></div>
+              <div class="arch-node arch-agent" id="arch-exec">📊 Executive<br><small>Analytics MCP</small></div>
+            </div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node arch-rag" id="arch-rag">📚 Shared RAG Layer · ChromaDB · ADEK Regulations</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-mcp-row">
+              <div class="arch-node arch-mcp">🔌 Policy MCP</div>
+              <div class="arch-node arch-mcp">🚌 Fleet MCP</div>
+              <div class="arch-node arch-mcp">👤 Driver MCP</div>
+              <div class="arch-node arch-mcp">📢 Notify MCP</div>
+              <div class="arch-node arch-mcp">🚨 Incident MCP</div>
+              <div class="arch-node arch-mcp">💰 Fines MCP</div>
+              <div class="arch-node arch-mcp">⏱️ SLA MCP</div>
+              <div class="arch-node arch-mcp">📡 Telemetry MCP</div>
+              <div class="arch-node arch-mcp">🎥 Evidence MCP</div>
+              <div class="arch-node arch-mcp">🗺️ Route MCP</div>
+              <div class="arch-node arch-mcp">🏛️ Gov Sync MCP</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

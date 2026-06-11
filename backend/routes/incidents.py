@@ -121,3 +121,17 @@ def get_charts_data():
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@router.get("/{incident_id}/audit")
+def get_incident_audit_log(incident_id: str):
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM incident_audit_log WHERE incident_id = ? ORDER BY timestamp ASC", (incident_id,))
+        rows = [dict(r) for r in cursor.fetchall()]
+        return {"success": True, "audit_log": rows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+

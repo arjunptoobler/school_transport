@@ -65,7 +65,9 @@ def compliance_agent(state: AgentState) -> dict:
             next_step = "incident"
             if driver_id:
                 mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
-                action_taken = f" (Action: Suspended Driver {driver_id})"
+                mcp_registry.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
+                mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative="Driver detected using mobile device.")
+                action_taken = f" (Action: Suspended Driver {driver_id} & synced to ADEK Gov Portal)"
         elif scenario == 1:
             text = "🤖 [Policy Audit] Missing guardian. Violated ADEK Rule 7.3. Student correctly retained. Escalating to Incident."
             next_step = "incident"
@@ -88,10 +90,13 @@ def compliance_agent(state: AgentState) -> dict:
                 act = action_match.group(1).strip().upper()
                 if act == "SUSPEND":
                     mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
-                    action_taken = f" (Action: Suspended Driver {driver_id})"
+                    mcp_registry.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
+                    mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative="Suspended due to critical policy breach.")
+                    action_taken = f" (Action: Suspended {driver_id} & synced with ADEK Gov Portal)"
                 elif act == "ASSIGN_TRAINING":
                     mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Valid", training_status="Pending Refresher")
-                    action_taken = f" (Action: Assigned Training to {driver_id})"
+                    mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Warning", driver_id=driver_id, severity="MEDIUM", narrative="Assigned remedial training.")
+                    action_taken = f" (Action: Assigned Training to {driver_id} & notified ADEK)"
 
             text = f"🤖 {assessment.strip()}{action_taken}"
             next_step = route_part if route_part in ["incident", "executive"] else "incident"

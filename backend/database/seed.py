@@ -101,6 +101,19 @@ def seed_database():
         timestamp TEXT
     )
     """)
+
+    # Audit log: tracks every action taken by agents on a specific incident
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS incident_audit_log (
+        log_id TEXT PRIMARY KEY,
+        incident_id TEXT,
+        agent TEXT,
+        action TEXT,
+        detail TEXT,
+        timestamp TEXT
+    )
+    """)
+
     
     # Check if data exists in the fines table (indicates new schema is seeded)
     cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='fines'")
