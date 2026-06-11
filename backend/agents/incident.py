@@ -33,22 +33,50 @@ def incident_agent(state: AgentState) -> dict:
         f"Task:\n"
         f"1. Synthesize the findings into a final Incident Resolution Plan.\n"
         f"2. Suggest specific follow-up actions (e.g., dispatch support, log fine, close ticket, notify operator).\n"
-        f"3. Decide if an incident should be automatically created or updated. If there is an existing Incident ID context, output ACTION: RESOLVE_INCIDENT to mark it as resolved. If this is a new event requiring a new ticket, output ACTION: CREATE_INCIDENT.\n"
+        f"3. Decide if an incident should be automatically created or updated using the provided tools. If there is an existing Incident ID context, call mcp_update_incident_status to mark it as resolved. If this is a new event requiring a new ticket, call mcp_create_incident.\n"
         f"4. Do NOT recommend manual review unless there is an explicit request to contest or appeal. Complete the resolution plan autonomously.\n"
-        f"Output format exactly:\n"
-        f"PLAN: <your 1-2 sentence resolution plan>\n"
-        f"ACTION: <RESOLVE_INCIDENT, CREATE_INCIDENT, or NONE>\n"
-        f"SEVERITY: <high, med, or low (only if creating incident)>\n"
-        f"TYPE: <1-4 word incident type (only if creating incident)>"
     )
 
-    llm_msg = call_gemini(
+    tools = [
+        {
+            "name": "mcp_create_incident",
+            "description": "Create a new official incident ticket. Use this when a new event requires tracking.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "severity": {"type": "STRING", "description": "high, med, or low"},
+                    "type": {"type": "STRING", "description": "1-4 word incident type category (e.g. Missing Guardian)"},
+                    "description": {"type": "STRING", "description": "1-2 sentence resolution plan explaining the action taken"}
+                },
+                "required": ["severity", "type", "description"]
+            }
+        },
+        {
+            "name": "mcp_update_incident_status",
+            "description": "Update an existing incident ticket status. Use this if an Incident ID is provided.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "incident_id": {"type": "STRING", "description": "The INC-XXXX ID"},
+                    "status": {"type": "STRING", "description": "Resolved, Closed, Open"},
+                    "reason": {"type": "STRING", "description": "Reason for status update"}
+                },
+                "required": ["incident_id", "status"]
+            }
+        }
+    ]
+
+    llm_res = call_gemini(
         prompt=prompt,
-        system_instruction="You are the Incident Management Agent. You create actionable resolution plans, resolve existing database incidents, and automate new incident ticket entries autonomously.",
+        system_instruction="You are the Incident Management Agent. You create actionable resolution plans, resolve existing database incidents, and automate new incident ticket entries autonomously using the provided tools.",
+        tools=tools
     )
 
     action_taken = ""
-    if not llm_msg:
+    llm_text = llm_res["text"] if (llm_res and isinstance(llm_res, dict)) else ""
+    function_call = llm_res["functionCall"] if (llm_res and isinstance(llm_res, dict)) else None
+
+    if not llm_res or (not llm_text and not function_call):
         if incident_id:
             mcp_registry.call_tool("mcp_update_incident_status", incident_id=incident_id, status="Resolved")
             text = f"📝 [Incident Plan] Resolved existing incident {incident_id} autonomously. Fleet safety rules updated."
@@ -95,32 +123,35 @@ def incident_agent(state: AgentState) -> dict:
                 mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Automated resolution via pipeline fallback")
     else:
         try:
-            plan = re.search(r"PLAN:\s*(.*)", llm_msg, re.IGNORECASE).group(1).split("ACTION:")[0]
-            action_match = re.search(r"ACTION:\s*(.*)", llm_msg, re.IGNORECASE)
-            
-            if action_match:
-                act = action_match.group(1).upper()
-                if "RESOLVE_INCIDENT" in act and incident_id:
-                    mcp_registry.call_tool("mcp_update_incident_status", incident_id=incident_id, status="Resolved")
-                    action_taken = f" (Action: Resolved {incident_id} in DB)"
-                elif "CREATE_INCIDENT" in act:
-                    sev_match = re.search(r"SEVERITY:\s*(.*)", llm_msg, re.IGNORECASE)
-                    type_match = re.search(r"TYPE:\s*(.*)", llm_msg, re.IGNORECASE)
+            if function_call:
+                act = function_call.get("name")
+                args = function_call.get("args", {})
+                
+                if act == "mcp_update_incident_status":
+                    inc_id = args.get("incident_id", incident_id)
+                    mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved")
+                    action_taken = f" (Action: Resolved {inc_id} in DB)"
+                    plan = args.get("reason", "Autonomous mitigation applied.")
+                elif act == "mcp_create_incident":
+                    sev = args.get("severity", "med")
+                    typ = args.get("type", "General Incident")
+                    plan = args.get("description", llm_text or "Autonomous resolution plan generated.")
                     
-                    sev = sev_match.group(1).strip().lower() if sev_match else "med"
-                    typ = type_match.group(1).strip() if type_match else "General Incident"
-                    
-                    res = mcp_registry.call_tool("mcp_create_incident", severity=sev, type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=plan.strip())
+                    res = mcp_registry.call_tool("mcp_create_incident", severity=sev, type=typ, driver_id=driver_id, vehicle_id=vehicle_id, description=plan)
                     if res and "incident_id" in res:
                         inc_id = res['incident_id']
                         action_taken = f" (Action: Created {inc_id} in DB)"
                         batch_write_history_to_audit_log(inc_id, history)
                         # Immediately update to Resolved as pipeline handled mitigation
                         mcp_registry.call_tool("mcp_update_incident_status", incident_id=inc_id, status="Resolved", agent="Incident Agent", reason="Autonomous mitigation plan executed.")
-            
-            text = f"📝 [Incident Plan] {plan.strip()}{action_taken}"
+                else:
+                    plan = llm_text
+            else:
+                plan = llm_text
+
+            text = f"📝 [Incident Plan] {plan}{action_taken}"
         except Exception as e:
-            text = f"📝 [Incident Plan] {llm_msg}"
+            text = f"📝 [Incident Plan] {llm_text}"
 
     next_step = "executive" if scenario in [0, 3] else "end"
 
