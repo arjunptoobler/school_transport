@@ -7,25 +7,38 @@ import re
 
 def route_optimization_agent(state: AgentState) -> dict:
     """Agent specialized in Route Analytics and Optimization (PRD 3.6)."""
-    query = state["event_payload"]
-    scenario = state["scenario"]
+    query = state.get("event_payload", "") or ""
+    scenario = state.get("scenario", -1)
     history = state.get("conversation_history", [])
 
     entities = extract_entities(state)
     vehicle_id = entities["vehicle_id"]
 
+    # London Scenario roadblock detection
+    roadblock_id = None
+    if "block" in query.lower() or "closure" in query.lower() or "deviation" in query.lower() or scenario == 2:
+        roadblock_id = "RB-LONDON-01"
+
+    # Call the tool directly to compute route adjustments
+    try:
+        tool_fn = mcp_registry.get_tool("mcp_optimize_route")
+        tool_res = tool_fn(vehicle_id=vehicle_id, roadblock_id=roadblock_id)
+    except Exception as e:
+        tool_res = {"error": f"Failed to execute solver: {str(e)}"}
+
     context_str = "\n".join([f"- {h['agent']}: {h['text']}" for h in history])
 
     prompt = (
         f"You are the Route Optimization Agent for the ADEK Platform.\n"
-        f"Analyze the following event for Route Analytics and Optimization (Phase 2):\n"
+        f"Analyze the following event for Route Analytics and Optimization:\n"
         f"Query/Event: {query}\n"
         f"Vehicle Target: {vehicle_id}\n"
         f"Agent Analysis Context:\n{context_str}\n\n"
+        f"Routing Solver Tool Result:\n{tool_res}\n\n"
         f"Task:\n"
-        f"1. Recommend optimized routing adjustments to reduce distance or bypass hazards.\n"
-        f"2. Suggest specific performance metrics impacts (e.g., fuel saved, delay avoided).\n"
-        f"3. Determine the required detour execution. If a detour is needed, extract the estimated delay in minutes.\n"
+        f"1. Generate a recommendation describing the detour or dispatch changes using the Solver Tool results.\n"
+        f"2. Incorporate the exact metrics from the Solver (distance in km, duration in minutes, standby bus ID if dispatched).\n"
+        f"3. Determine if a detour is required (ACTION: EXECUTE_DETOUR or NONE) and the estimated delay in minutes (DELAY_MINS).\n"
         f"4. Decide the next routing step: 'compliance' (if policy check needed for detour) or 'executive' (if standard reporting).\n"
         f"Output format exactly:\n"
         f"RECOMMENDATION: <your 1-2 sentence route adjustment>\n"
@@ -36,7 +49,7 @@ def route_optimization_agent(state: AgentState) -> dict:
 
     llm_msg = call_gemini(
         prompt=prompt,
-        system_instruction="You are an expert Route Optimizer, analyzing historical trip data and traffic conditions.",
+        system_instruction="You are an expert Route Optimizer, translating spatial solver outputs into clear human-friendly operational summaries.",
     )
 
     action_str = "Recalculated detour routes and bypassed delay zones"

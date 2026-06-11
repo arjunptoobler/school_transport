@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+myenv/
 
 # Runtime data — regenerated on startup (do NOT commit these)
 backend/database/school_transport.db

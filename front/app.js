@@ -411,48 +411,142 @@ async function runRAGQuery() {
   }
 }
 
-// --- MAP SIMULATOR ---
-let mapBuses = [];
+// --- LEAFLET REAL MAP SYSTEM ---
+let leafletMap = null;
+let routeLayers = [];
+let markerLayers = [];
+
 function initMap() {
-  const mapContainer = document.getElementById('map-buses');
-  if (!mapContainer) return;
-  mapContainer.innerHTML = '';
-  mapBuses = [];
+  const mapContainer = document.getElementById('map-leaflet');
+  if (!mapContainer || leafletMap) return;
   
-  for (let i = 0; i < 15; i++) {
-    const bus = document.createElement('div');
-    bus.className = 'map-bus moving';
-    const left = 10 + Math.random() * 80;
-    const top = 10 + Math.random() * 80;
-    bus.style.left = `${left}%`;
-    bus.style.top = `${top}%`;
-    
-    const statusRand = Math.random();
-    if (statusRand > 0.9) {
-      bus.className = 'map-bus alert';
-    } else if (statusRand > 0.7) {
-      bus.className = 'map-bus stopped';
-    }
-    
-    mapContainer.appendChild(bus);
-    mapBuses.push({ el: bus, l: left, t: top, status: bus.className });
-  }
+  // London center: 51.5060, -0.1360
+  leafletMap = L.map('map-leaflet').setView([51.5060, -0.1360], 14);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(leafletMap);
+  
+  // Load initial normal state
+  updateMapLayers(0);
 }
 
-// Map ticker
-setInterval(() => {
-  if (activeTab !== 'fleet') return;
-  mapBuses.forEach(b => {
-    if (b.status.includes('moving')) {
-      b.l += (Math.random() - 0.5) * 2;
-      b.t += (Math.random() - 0.5) * 2;
-      if (b.l < 5) b.l = 5; if (b.l > 95) b.l = 95;
-      if (b.t < 5) b.t = 5; if (b.t > 95) b.t = 95;
-      b.el.style.left = `${b.l}%`;
-      b.el.style.top = `${b.t}%`;
-    }
-  });
-}, 2000);
+async function updateMapLayers(scenarioNum) {
+  if (!leafletMap) return;
+  
+  // Clear existing layers
+  routeLayers.forEach(l => leafletMap.removeLayer(l));
+  markerLayers.forEach(m => leafletMap.removeLayer(m));
+  routeLayers = [];
+  markerLayers = [];
+  
+  // Fetch route and roadblock data from backend API
+  const data = await apiFetch("/fleet/routes");
+  if (!data || !data.success) return;
+  
+  const depot = [51.5030, -0.1500];
+  const school = [51.5120, -0.1220];
+  const roadblockCoords = [51.5070, -0.1420];
+  
+  // 1. Add School and Depot Markers
+  const depotMarker = L.marker(depot, {
+    icon: L.divIcon({
+      html: '<span style="font-size: 24px;">🏢</span>',
+      className: 'map-marker-emoji',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    })
+  }).bindPopup("<b>Bus Depot</b><br>Hyde Park Corner").addTo(leafletMap);
+  
+  const schoolMarker = L.marker(school, {
+    icon: L.divIcon({
+      html: '<span style="font-size: 24px;">🏫</span>',
+      className: 'map-marker-emoji',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    })
+  }).bindPopup("<b>Covent Garden School</b>").addTo(leafletMap);
+  
+  markerLayers.push(depotMarker, schoolMarker);
+
+  // 2. Render routes based on scenario
+  if (scenarioNum === 2) {
+    // Scenario 2: Grounded / Breakdown Student Merge
+    // Draw Grounded Bus 2 (AU-BUS-104) at Piccadilly
+    const groundedBus = L.marker([51.5075, -0.1400], {
+      icon: L.divIcon({
+        html: '<span style="font-size: 24px;">🚨</span>',
+        className: 'map-marker-emoji',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup("<b>Grounded Bus (AU-BUS-104)</b><br>Brake pressure failure.<br>12 students stranded.").addTo(leafletMap);
+    
+    // Draw Standby Bus 1 (AU-BUS-106) route (merge route)
+    const mergeGeoJSON = L.geoJSON(data.paths.merge, {
+      style: { color: '#f97316', weight: 5, opacity: 0.85, dashArray: '5, 10' }
+    }).bindPopup("<b>Standby Bus Route</b><br>Detouring to pick up stranded students.").addTo(leafletMap);
+    
+    const standbyBus = L.marker(depot, {
+      icon: L.divIcon({
+        html: '<span style="font-size: 24px;">🚌</span>',
+        className: 'map-marker-emoji',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup("<b>Standby Bus (AU-BUS-106)</b><br>Dispatched from Depot.").addTo(leafletMap);
+
+    routeLayers.push(mergeGeoJSON);
+    markerLayers.push(groundedBus, standbyBus);
+    
+  } else if (scenarioNum === 99) { // Custom Event (like roadblock detour)
+    // Draw roadblock marker
+    const rb = L.marker(roadblockCoords, {
+      icon: L.divIcon({
+        html: '<span style="font-size: 24px;">🚧</span>',
+        className: 'map-marker-emoji',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup("<b>Piccadilly Roadblock Closure</b>").addTo(leafletMap);
+    
+    // Draw detour route
+    const detourGeoJSON = L.geoJSON(data.paths.detour, {
+      style: { color: '#f97316', weight: 5, opacity: 0.85 }
+    }).bindPopup("<b>Detour Route</b><br>Avoiding Piccadilly").addTo(leafletMap);
+    
+    const bus = L.marker(depot, {
+      icon: L.divIcon({
+        html: '<span style="font-size: 24px;">🚌</span>',
+        className: 'map-marker-emoji',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup("<b>Bus on Detour (AU-BUS-104)</b>").addTo(leafletMap);
+
+    routeLayers.push(detourGeoJSON);
+    markerLayers.push(rb, bus);
+    
+  } else {
+    // Normal / Scenario 0 & 1
+    const normalGeoJSON = L.geoJSON(data.paths.normal, {
+      style: { color: '#8b5cf6', weight: 5, opacity: 0.8 }
+    }).bindPopup("<b>Standard Route</b><br>Depot to Covent Garden").addTo(leafletMap);
+    
+    const bus = L.marker(depot, {
+      icon: L.divIcon({
+        html: '<span style="font-size: 24px;">🚌</span>',
+        className: 'map-marker-emoji',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup("<b>Active Bus (AU-BUS-104)</b>").addTo(leafletMap);
+
+    routeLayers.push(normalGeoJSON);
+    markerLayers.push(bus);
+  }
+}
 
 // --- ALERTS AND FEED ---
 const LIVE_ALERTS = [];
@@ -485,6 +579,9 @@ async function runScenario(num) {
   
   resetDiagramHighlights();
   
+  // Update map layers to visually show the scenario route
+  updateMapLayers(num);
+
   // --- Workflow Trace Renderer ---
   const demoPayloads = [
     "System Event: Driver using mobile device via cabin camera on Bus AU-BUS-105.",
@@ -505,7 +602,6 @@ async function runScenario(num) {
   badge.style.color = '#60a5fa';
   document.getElementById('workflow-event-text').textContent = payload;
   traceCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
   // Call API Endpoint
   const res = await apiFetch("/agents/run_scenario", {
     method: "POST",
@@ -798,6 +894,13 @@ async function runCustomQuery() {
   const input = document.getElementById('custom-agent-query');
   const query = input.value.trim();
   if (!query) return;
+  
+  // If query mentions roadblocks or routing deviation, trigger detour on map
+  if (query.toLowerCase().includes("block") || query.toLowerCase().includes("closure") || query.toLowerCase().includes("deviation")) {
+    updateMapLayers(99);
+  } else {
+    updateMapLayers(0);
+  }
 
   const conv = document.getElementById('agent-conversation');
   const monitor = document.getElementById('agent-monitor');
