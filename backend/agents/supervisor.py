@@ -15,12 +15,36 @@ def supervisor_agent(state: AgentState) -> dict:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            query = "SELECT incident_id, type FROM incidents WHERE status != 'Resolved' AND (vehicle_id = ? OR driver_id = ?) LIMIT 1"
-            cursor.execute(query, (veh_id, drv_id))
+            ep = event_payload.lower()
+            inc_type = None
+            if "speed" in ep: inc_type = "Speed Violation"
+            elif "distract" in ep or "phone" in ep or "mobile" in ep: inc_type = "Driver Distraction"
+            elif "seatbelt" in ep: inc_type = "Seatbelt Violation"
+            elif "delay" in ep or "route" in ep: inc_type = "Minor Delay"
+            elif "guardian" in ep: inc_type = "Missing Guardian"
+            elif "inspect" in ep or "brake" in ep: inc_type = "Vehicle Inspection Failure"
+            
+            if inc_type == "Missing Guardian":
+                import re
+                student_match = re.search(r"STD-\d+", event_payload, re.IGNORECASE)
+                if student_match:
+                    student_id = student_match.group(0).upper()
+                    query = "SELECT incident_id FROM incidents WHERE status != 'Resolved' AND vehicle_id = ? AND type = ? AND description LIKE ? LIMIT 1"
+                    cursor.execute(query, (veh_id, inc_type, f"%{student_id}%"))
+                else:
+                    query = "SELECT incident_id FROM incidents WHERE status != 'Resolved' AND vehicle_id = ? AND type = ? LIMIT 1"
+                    cursor.execute(query, (veh_id, inc_type))
+            elif inc_type:
+                query = "SELECT incident_id FROM incidents WHERE status != 'Resolved' AND type = ? AND (vehicle_id = ? OR driver_id = ?) LIMIT 1"
+                cursor.execute(query, (inc_type, veh_id, drv_id))
+            else:
+                query = "SELECT incident_id FROM incidents WHERE status != 'Resolved' AND description LIKE ? AND (vehicle_id = ? OR driver_id = ?) LIMIT 1"
+                cursor.execute(query, (f"%{event_payload[:20]}%", veh_id, drv_id))
+
             row = cursor.fetchone()
             if row:
                 inc_id = row["incident_id"]
-                msg = f"🧠 Deduplication Intelligence: Detected active incident {inc_id} for this entity. Halting workflow to prevent alert fatigue."
+                msg = f"🧠 Deduplication Intelligence: Detected active incident {inc_id} matching this exact trigger. Halting workflow to prevent alert fatigue."
                 return {
                     "event_payload": event_payload,
                     "conversation_history": [{"agent": "Supervisor Agent", "text": msg, "tool": "Deduplication Engine", "action": "Halted workflow (Duplicate)."}],
