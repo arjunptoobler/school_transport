@@ -585,6 +585,77 @@ function addAlertItem(alert) {
   if (feed.children.length > 20) feed.removeChild(feed.lastChild);
 }
 
+const SEEN_RUNS = new Set();
+
+function processApiRun(run) {
+  const tag = getEventTag(run.scenario_id, run.event_payload);
+  const messages = run.history || [];
+  
+  // 1. Initial Alert Received
+  let alertType = 'info';
+  if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
+  else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+  addAlertItem({
+    type: alertType,
+    text: `📢 ${tag} ALERT RECEIVED: ${run.event_payload}`
+  });
+
+  // 2. Refresh dashboard data
+  loadKPIs();
+  loadIncidentsData();
+  loadFleetData();
+  updateMapLayers(run.scenario_id);
+
+  // 3. Chronologically display agent actions
+  let idx = 0;
+  function nextStep() {
+    if (idx >= messages.length) return;
+    const msg = messages[idx];
+    
+    // Log agent action chronologically
+    addAlertItem({
+      type: 'info',
+      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
+    });
+
+    const isLast = idx === messages.length - 1;
+    if (isLast) {
+      addAlertItem({
+        type: 'ok',
+        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+      });
+      // Refresh KPIs again at the end of workflow
+      loadKPIs();
+      loadIncidentsData();
+    }
+    
+    idx++;
+    setTimeout(nextStep, 1500);
+  }
+  nextStep();
+}
+
+async function pollRecentRuns() {
+  try {
+    const res = await apiFetch('/agents/recent_runs');
+    if (res && res.success && res.runs) {
+      // Sort runs by run_id ascending to process in order
+      const sortedRuns = [...res.runs].sort((a, b) => a.run_id.localeCompare(b.run_id));
+      sortedRuns.forEach(run => {
+        if (!SEEN_RUNS.has(run.run_id)) {
+          SEEN_RUNS.add(run.run_id);
+          // Only animate/process if this is not the initial page load check
+          if (SEEN_RUNS.size > 1) {
+            processApiRun(run);
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Error polling recent runs:", err);
+  }
+}
+
 // --- RUN AGENT SCENARIOS VIA FASTAPI ---
 let scenarioRunning = false;
 async function runScenario(num) {
@@ -1032,6 +1103,17 @@ window.onload = function() {
     } else {
       summaryDiv.innerHTML = `<p>Executive summary unavailable. Run a scenario to generate insights.</p>`;
     }
+  })();
+
+  // Poll for API events in the background
+  (async () => {
+    try {
+      const res = await apiFetch('/agents/recent_runs');
+      if (res && res.success && res.runs) {
+        res.runs.forEach(run => SEEN_RUNS.add(run.run_id));
+      }
+    } catch (e) {}
+    setInterval(pollRecentRuns, 2000);
   })();
 
   LIVE_ALERTS.forEach(al => addAlertItem(al));
