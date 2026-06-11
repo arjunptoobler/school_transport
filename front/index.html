@@ -349,47 +349,6 @@
         </div>
       </div>
 
-      <!-- Trigger panel: scenarios + custom event -->
-      <div class="card" style="margin-bottom:1.25rem;">
-        <div class="card-header">
-          <span class="card-title">⚡ Trigger an Incident Workflow</span>
-          <span class="badge badge-purple">Event-Driven · Headless Supervisor</span>
-        </div>
-        <div class="scenario-grid" style="margin-bottom:1rem;">
-          <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
-            <div class="sc-num">01</div>
-            <div class="sc-icon">📱</div>
-            <div class="sc-title">Driver Mobile Usage</div>
-            <div class="sc-desc">Camera detects phone · Safety triage · Evidence sealed · Permit suspended · Gov sync</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
-            <div class="sc-num">02</div>
-            <div class="sc-icon">👨‍👩‍👧</div>
-            <div class="sc-title">Missing Guardian</div>
-            <div class="sc-desc">Student retained · RAG policy lookup · Parent SMS dispatched · Incident ticket created</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
-            <div class="sc-num">03</div>
-            <div class="sc-icon">🔧</div>
-            <div class="sc-title">Inspection Failure</div>
-            <div class="sc-desc">Bus grounded · Detour calculated · Schedule pushed · ETA broadcast to parents</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-          <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
-            <div class="sc-num">04</div>
-            <div class="sc-icon">📉</div>
-            <div class="sc-title">Executive KPI Summary</div>
-            <div class="sc-desc">Compliance audit · SLA checks · Risk matrix · Board-ready narrative generated</div>
-            <button class="sc-btn">▶ Run Workflow</button>
-          </div>
-        </div>
-        <div class="rag-query-box">
-          <input type="text" id="custom-agent-query" placeholder="Or inject a raw system event: e.g. 'GPS deviation on Bus AU-BUS-140' or 'Harsh braking detected on route 12'" />
-          <button onclick="runCustomQuery()">Inject Event →</button>
-        </div>
-      </div>
 
       <!-- Workflow Execution Trace -->
       <div class="card" id="workflow-trace-card" style="display:none;">
