@@ -553,24 +553,24 @@ async function updateMapLayers(scenarioNum) {
 const LIVE_ALERTS = [];
 
 function getEventTag(scenarioId, queryText = "") {
-  if (scenarioId === 0) return "[Distraction]";
-  if (scenarioId === 1) return "[Missing Guardian]";
-  if (scenarioId === 2) return "[Pre-Trip Compliance]";
-  if (scenarioId === 3) return "[Executive Summary]";
+  if (scenarioId === 0) return "Distraction";
+  if (scenarioId === 1) return "Missing Guardian";
+  if (scenarioId === 2) return "Pre-Trip Compliance";
+  if (scenarioId === 3) return "Executive Summary";
   
   const q = queryText.toLowerCase();
   if (q.includes("distract") || q.includes("phone") || q.includes("seatbelt") || q.includes("mobile")) {
-    return "[Distraction]";
+    return "Distraction";
   } else if (q.includes("guardian") || q.includes("parent") || q.includes("boarding") || q.includes("student")) {
-    return "[Missing Guardian]";
+    return "Missing Guardian";
   } else if (q.includes("compliance") || q.includes("inspection") || q.includes("permit") || q.includes("pressure") || q.includes("braking")) {
-    return "[Pre-Trip Compliance]";
+    return "Pre-Trip Compliance";
   } else if (q.includes("summary") || q.includes("executive") || q.includes("kpi")) {
-    return "[Executive Summary]";
+    return "Executive Summary";
   } else if (q.includes("route") || q.includes("deviation") || q.includes("block") || q.includes("closure")) {
-    return "[Route Deviation]";
+    return "Route Deviation";
   }
-  return "[System Event]";
+  return "System Event";
 }
 
 function addAlertItem(alert) {
@@ -588,16 +588,18 @@ function addAlertItem(alert) {
 const SEEN_RUNS = new Set();
 
 function processApiRun(run) {
-  const tag = getEventTag(run.scenario_id, run.event_payload);
+  const baseTag = getEventTag(run.scenario_id, run.event_payload);
+  const uid = run.run_id ? run.run_id.substring(run.run_id.length - 4) : Math.random().toString(36).substring(2, 6).toUpperCase();
+  const fullTag = `[${baseTag}-${uid}]`;
   const messages = run.history || [];
   
   // 1. Initial Alert Received
   let alertType = 'info';
-  if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
-  else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+  if (baseTag === 'Distraction' || baseTag === 'Pre-Trip Compliance') alertType = 'crit';
+  else if (baseTag === 'Missing Guardian' || baseTag === 'Route Deviation') alertType = 'warn';
   addAlertItem({
     type: alertType,
-    text: `📢 ${tag} ALERT RECEIVED: ${run.event_payload}`
+    text: `📢 ${fullTag} ALERT RECEIVED: ${run.event_payload}`
   });
 
   // 2. Refresh dashboard data
@@ -612,17 +614,11 @@ function processApiRun(run) {
     if (idx >= messages.length) return;
     const msg = messages[idx];
     
-    // Log agent action chronologically
-    addAlertItem({
-      type: 'info',
-      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
-    });
-
     const isLast = idx === messages.length - 1;
     if (isLast) {
       addAlertItem({
         type: 'ok',
-        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+        text: `✅ ${fullTag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
       });
       // Refresh KPIs again at the end of workflow
       loadKPIs();
@@ -722,16 +718,18 @@ async function runScenario(num) {
     return { icon: '🤖', accent: '#6b7280', bg: 'rgba(107,114,128,.08)', border: 'rgba(107,114,128,.25)' };
   }
 
-  const tag = getEventTag(num, payload);
+  const baseTag = getEventTag(num, payload);
+  const uid = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const fullTag = `[${baseTag}-${uid}]`;
   let idx = 0;
   function nextStep() {
     if (idx === 0) {
       let alertType = 'info';
-      if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
-      else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+      if (baseTag === 'Distraction' || baseTag === 'Pre-Trip Compliance') alertType = 'crit';
+      else if (baseTag === 'Missing Guardian' || baseTag === 'Route Deviation') alertType = 'warn';
       addAlertItem({
         type: alertType,
-        text: `📢 ${tag} ALERT RECEIVED: ${payload}`
+        text: `📢 ${fullTag} ALERT RECEIVED: ${payload}`
       });
     }
 
@@ -745,20 +743,13 @@ async function runScenario(num) {
     }
 
     const msg = messages[idx];
-    
-    // Log agent action chronologically
-    addAlertItem({
-      type: 'info',
-      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
-    });
-
     const cfg = getConfig(msg.agent);
     const isLast = idx === messages.length - 1;
 
     if (isLast) {
       addAlertItem({
         type: 'ok',
-        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+        text: `✅ ${fullTag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
       });
     }
 
@@ -785,7 +776,7 @@ async function runScenario(num) {
 
     content.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
-        <span style="font-weight:700;font-size:.85rem;color:${cfg.accent};">${msg.agent}</span>
+        <span style="font-weight:700;font-size:.85rem;color:${cfg.accent};">${msg.agent} <span style="font-size:.7rem;color:var(--text3);margin-left:8px;">${fullTag}</span></span>
         <span style="font-size:.72rem;color:var(--text3);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:.2rem .6rem;">🛠️ ${msg.tool}</span>
       </div>
       <div style="font-size:.84rem;line-height:1.6;color:var(--text1);">${msg.text}</div>
@@ -1037,40 +1028,36 @@ async function runCustomQuery() {
   });
 
   conv.innerHTML = '';
-  const tag = getEventTag(99, query);
+  const baseTag = getEventTag(99, query);
+  const uid = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const fullTag = `[${baseTag}-${uid}]`;
   const messages = (res && res.success) ? res.history : [{ agent: 'Supervisor Agent', text: 'Unable to reach agent pipeline.', tool: 'Fallback' }];
   let idx = 0;
   function nextStep() {
     if (idx === 0) {
       let alertType = 'info';
-      if (tag === '[Distraction]' || tag === '[Pre-Trip Compliance]') alertType = 'crit';
-      else if (tag === '[Missing Guardian]' || tag === '[Route Deviation]') alertType = 'warn';
+      if (baseTag === 'Distraction' || baseTag === 'Pre-Trip Compliance') alertType = 'crit';
+      else if (baseTag === 'Missing Guardian' || baseTag === 'Route Deviation') alertType = 'warn';
       addAlertItem({
         type: alertType,
-        text: `📢 ${tag} ALERT RECEIVED: ${query}`
+        text: `📢 ${fullTag} ALERT RECEIVED: ${query}`
       });
     }
 
     if (idx >= messages.length) return;
     const msg = messages[idx];
-    
-    // Log agent action chronologically
-    addAlertItem({
-      type: 'info',
-      text: `⚡ ${tag} ACTION: ${msg.agent} -> ${msg.action || msg.text}`
-    });
 
     const isLast = idx === messages.length - 1;
     if (isLast) {
       addAlertItem({
         type: 'ok',
-        text: `✅ ${tag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
+        text: `✅ ${fullTag} OUTCOME: Final state achieved - ${msg.action || msg.text}`
       });
     }
 
     const mDiv = document.createElement('div');
     mDiv.className = 'conv-msg';
-    mDiv.innerHTML = `<span class="conv-agent">${msg.agent}</span><div class="conv-text">${msg.text}</div><div class="conv-tool">🛠️ ${msg.tool}</div>`;
+    mDiv.innerHTML = `<span class="conv-agent">${msg.agent} <span style="font-size:.7rem;color:var(--text3);margin-left:8px;">${fullTag}</span></span><div class="conv-text">${msg.text}</div><div class="conv-tool">🛠️ ${msg.tool}</div>`;
     conv.appendChild(mDiv);
     conv.scrollTop = conv.scrollHeight;
     highlightDiagramNode(msg.agent);
