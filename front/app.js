@@ -780,8 +780,8 @@ async function runScenario(num) {
   const conv = document.getElementById('agent-conversation');
   if (conv) conv.innerHTML = '';
   const monitor = document.getElementById('agent-monitor');
-  monitor.innerHTML = '';
-  
+  if (monitor) monitor.innerHTML = '';
+
   resetDiagramHighlights();
   
   // Update map layers to visually show the scenario route
