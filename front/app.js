@@ -793,7 +793,7 @@ async function runScenario(num) {
     "Webhook Alert: Guardian not present at stop #4 for Bus AU-BUS-102. Student retained.",
     "Pre-trip compliance check failed. Braking pressure below ADEK safety threshold for Bus AU-BUS-104.",
     "System trigger: Generate Executive C-Level Summary of platform metrics.",
-    "Pre-departure check: Driver DRV-4412 starting vehicle AU-BUS-105. Verify permit, medical, and training compliance before departure."
+    "Pre-departure check: Driver DRV-1045 starting vehicle AU-BUS-105. Verify permit, medical, and training compliance before departure."
   ];
   const payload = demoPayloads[num] || "";
 
@@ -937,8 +937,8 @@ function getFallbackHistory(num) {
       { agent: 'Executive Agent', text: '📊 Synthesizing executive report.', tool: 'Analytics MCP', action: 'Compiled strategic ADEK executive brief.' }
     ],
     [
-      { agent: 'Supervisor Agent', text: '🧠 Pre-departure check initiated for DRV-4412 on AU-BUS-105. Running deterministic compliance gate before LLM pipeline.', tool: 'LangGraph State Router', action: 'Routed to Compliance Agent — Pre-departure gate.' },
-      { agent: 'Compliance Agent', text: '🚫 [Pre-Departure FAILED] Driver DRV-4412 (Yousef Hassan) · Permit: Suspended · Medical: Expired · Training: Failed Evaluation. ADEK Operator Reg 3.1 — driver banned immediately. Permit status set to Suspended, ADEK Gov Portal synced.', tool: 'mcp_update_driver_status + mcp_sync_permit_status_with_gov + mcp_find_available_driver', action: 'Banned DRV-4412 — synced with ADEK Gov Portal' },
+      { agent: 'Supervisor Agent', text: '🧠 Pre-departure check initiated for DRV-1045 on AU-BUS-105. Running deterministic compliance gate before LLM pipeline.', tool: 'LangGraph State Router', action: 'Routed to Compliance Agent — Pre-departure gate.' },
+      { agent: 'Compliance Agent', text: '🚫 [Pre-Departure FAILED] Driver DRV-1045 (Khalid Al Remeithi) · Permit: Suspended · Medical: Expired · Training: Pending Refresher. ADEK Operator Reg 3.1 — driver banned immediately. Permit status set to Suspended, ADEK Gov Portal synced.', tool: 'mcp_update_driver_status + mcp_sync_permit_status_with_gov + mcp_find_available_driver', action: 'Banned DRV-1045 — synced with ADEK Gov Portal' },
       { agent: 'Compliance Agent', text: '🔄 Replacement driver search: Found DRV-1024 (Zayed Al Mansoori, Emirates Transport) — fully compliant. Permit: Valid · Medical: Passed · Training: Complete. Route AU-BUS-105 re-assigned. Departure cleared.', tool: 'mcp_find_available_driver', action: 'Replacement DRV-1024 allocated to AU-BUS-105' },
       { agent: 'Incident Agent', text: '🚨 Incident ticket INC-2026-PRE-001 created. Operator Emirates Transport notified. Replacement driver dispatched. Route delay: ~8 minutes.', tool: 'Incident MCP + Notification MCP', action: 'Auto-logged pre-departure violation — operator notified.' }
     ]
