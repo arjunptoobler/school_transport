@@ -52,11 +52,11 @@ function switchTab(tabId) {
 
 // --- MOCK FALLBACK DATA ---
 const MOCK_DRIVERS = [
-  { driver_id: 'DRV-1024', name: 'Zayed Al Mansoori', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Emirates Transport', incident_count: 0, is_repeat_offender: false },
-  { driver_id: 'DRV-2089', name: 'Ahmed Al Hashimi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Al Ghazal Transport', incident_count: 1, is_repeat_offender: false },
-  { driver_id: 'DRV-1152', name: 'Mustafa Mahmoud', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Hafilat School', incident_count: 0, is_repeat_offender: false },
-  { driver_id: 'DRV-3041', name: 'John Doe', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Pending Refresher', operator: 'Abu Dhabi Transport', incident_count: 2, is_repeat_offender: false },
-  { driver_id: 'DRV-4412', name: 'Yousef Hassan', permit_status: 'Suspended', medical_status: 'Expired', training_status: 'Failed Evaluation', operator: 'Emirates Transport', incident_count: 4, is_repeat_offender: true }
+  { driver_id: 'DRV-1001', name: 'Mohammed Al Rashidi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Emirates Transport', incident_count: 0, is_repeat_offender: false },
+  { driver_id: 'DRV-1004', name: 'Ahmed Al Hashimi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Al Ghazal Transport', incident_count: 1, is_repeat_offender: false },
+  { driver_id: 'DRV-1010', name: 'Mustafa Al Mansouri', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Complete', operator: 'Hafilat School Transport', incident_count: 0, is_repeat_offender: false },
+  { driver_id: 'DRV-1015', name: 'Omar Al Suwaidi', permit_status: 'Valid', medical_status: 'Passed', training_status: 'Pending Refresher', operator: 'Abu Dhabi Transport', incident_count: 2, is_repeat_offender: false },
+  { driver_id: 'DRV-1045', name: 'Khalid Al Remeithi', permit_status: 'Suspended', medical_status: 'Expired', training_status: 'Pending Refresher', operator: 'Emirates Transport', incident_count: 4, is_repeat_offender: true }
 ];
 
 const MOCK_VEHICLES = [
@@ -68,10 +68,10 @@ const MOCK_VEHICLES = [
 ];
 
 const MOCK_SLAS = [
-  { sla_id: 'SLA-2026-001', driver_id: 'DRV-3041', deadline_date: '2026-06-16T00:00:00', status: 'Pending' },
-  { sla_id: 'SLA-2026-002', driver_id: 'DRV-4412', deadline_date: '2026-06-08T00:00:00', status: 'Overdue' },
-  { sla_id: 'SLA-2026-003', driver_id: 'DRV-1024', deadline_date: '2026-06-20T00:00:00', status: 'Pending' },
-  { sla_id: 'SLA-2026-004', driver_id: 'DRV-2089', deadline_date: '2026-06-09T00:00:00', status: 'Overdue' },
+  { sla_id: 'SLA-3001', driver_id: 'DRV-1015', deadline_date: '2026-06-18T00:00:00', status: 'Pending' },
+  { sla_id: 'SLA-3002', driver_id: 'DRV-1045', deadline_date: '2026-06-10T00:00:00', status: 'Overdue' },
+  { sla_id: 'SLA-3003', driver_id: 'DRV-1004', deadline_date: '2026-06-22T00:00:00', status: 'Pending' },
+  { sla_id: 'SLA-3004', driver_id: 'DRV-1010', deadline_date: '2026-06-11T00:00:00', status: 'Overdue' },
 ];
 
 const MOCK_INCIDENTS = [];
@@ -90,26 +90,101 @@ async function loadFleetData() {
   const vehicles = (data && data.vehicles) ? data.vehicles : MOCK_VEHICLES;
   const driverCountBadge = document.getElementById('driver-count-badge');
   if (driverCountBadge) driverCountBadge.textContent = `${drivers.length} drivers`;
-  
+
   drivers.forEach(drv => {
-    let stClass = 'sp-ok';
-    if (drv.training_status.includes('Pending')) stClass = 'sp-warn';
-    if (drv.permit_status === 'Suspended') stClass = 'sp-fail';
     const incCount = drv.incident_count || drv.total_incidents || 0;
-    const repeatBadge = (drv.is_repeat_offender || incCount >= 3)
-      ? ' <span class="status-pill sp-fail" style="font-size:.6rem;padding:.1rem .35rem;">Repeat</span>' : '';
+    const isRepeat = drv.is_repeat_offender || incCount >= 3;
+
+    // Compute per-dimension status
+    const permitOk   = drv.permit_status === 'Valid';
+    const medicalOk  = drv.medical_status === 'Passed';
+    const trainingOk = drv.training_status === 'Complete' || drv.training_status === 'Completed';
+
+    // Compute risk score (0–100, higher = better)
+    let risk = 100;
+    if (!permitOk)   risk -= 40;
+    if (drv.medical_status === 'Expired') risk -= 25;
+    else if (!medicalOk) risk -= 30;
+    if (drv.training_status.includes('Pending'))  risk -= 15;
+    else if (drv.training_status.includes('Failed')) risk -= 25;
+    risk -= Math.min(35, incCount * 10);
+    if (isRepeat) risk -= 10;
+    risk = Math.max(0, risk);
+
+    const riskColor  = risk >= 80 ? '#10b981' : risk >= 50 ? '#f59e0b' : '#ef4444';
+    const riskLabel  = risk >= 80 ? 'Low' : risk >= 50 ? 'Medium' : 'High';
+
+    // Overall status
+    const isSuspended = drv.permit_status === 'Suspended';
+    const hasIssue    = !permitOk || !medicalOk || !trainingOk || isRepeat;
+    const stLabel     = isSuspended ? 'Suspended' : hasIssue ? 'At Risk' : 'Compliant';
+    const stClass     = isSuspended ? 'sp-fail' : hasIssue ? 'sp-warn' : 'sp-ok';
+
+    // Check icons for each compliance dimension
+    const chk = (ok, warn) => ok
+      ? `<span style="color:#10b981;font-size:1rem;" title="OK">✓</span>`
+      : warn
+        ? `<span style="color:#f59e0b;font-size:1rem;" title="${warn}">⚠</span>`
+        : `<span style="color:#ef4444;font-size:1rem;" title="Failed">✗</span>`;
+
+    const permitChk   = chk(permitOk,  false);
+    const medicalChk  = drv.medical_status === 'Expired'
+      ? `<span style="color:#f59e0b;font-size:1rem;" title="Expired">⚠</span>`
+      : chk(medicalOk, false);
+    const trainingChk = drv.training_status.includes('Pending')
+      ? `<span style="color:#f59e0b;font-size:1rem;" title="Pending Refresher">⚠</span>`
+      : chk(trainingOk, false);
+
+    // Incident bar (mini visual)
+    const maxInc    = 5;
+    const incPct    = Math.min(100, (incCount / maxInc) * 100);
+    const incColor  = incCount === 0 ? '#10b981' : incCount <= 2 ? '#f59e0b' : '#ef4444';
+    const repeatTag = isRepeat
+      ? `<span style="font-size:.58rem;font-weight:700;color:#f87171;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:.1rem .35rem;margin-left:.35rem;vertical-align:middle;">REPEAT</span>`
+      : '';
+
+    // Driver avatar letter
+    const initial = drv.name ? drv.name[0].toUpperCase() : '?';
+    const avatarBg = isSuspended ? '#ef4444' : hasIssue ? '#f59e0b' : '#10b981';
+
+    const rowBorder = isSuspended ? 'rgba(239,68,68,.6)' : hasIssue ? 'rgba(245,158,11,.5)' : 'rgba(16,185,129,.3)';
 
     const tr = document.createElement('tr');
-    tr.style.cursor = 'pointer';
-    tr.title = `Click to see ${drv.name}'s compliance summary`;
+    tr.style.cssText = `cursor:pointer;border-left:3px solid ${rowBorder};`;
+    tr.title = `Click to expand ${drv.name}'s compliance detail`;
     tr.innerHTML = `
-      <td><strong>${drv.driver_id}</strong></td>
-      <td>${drv.name}</td>
-      <td>${drv.permit_status}</td>
-      <td>${drv.medical_status}</td>
-      <td>${drv.training_status}</td>
-      <td>${incCount}${repeatBadge}</td>
-      <td><span class="status-pill ${stClass}">${drv.permit_status === 'Valid' ? 'Compliant' : drv.permit_status}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.6rem;">
+          <div style="width:30px;height:30px;border-radius:50%;background:${avatarBg}22;border:1.5px solid ${avatarBg}66;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:${avatarBg};flex-shrink:0;">${initial}</div>
+          <div>
+            <div style="font-weight:700;font-size:.8rem;color:var(--text);">${drv.name}</div>
+            <div style="font-size:.65rem;font-family:'JetBrains Mono',monospace;color:var(--text3);">${drv.driver_id}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-size:.75rem;color:var(--text2);">${drv.operator || '—'}</td>
+      <td style="text-align:center;">${permitChk}</td>
+      <td style="text-align:center;">${medicalChk}</td>
+      <td style="text-align:center;">${trainingChk}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <span style="font-weight:700;font-size:.82rem;color:${incColor};">${incCount}</span>
+          <div style="flex:1;height:4px;background:var(--border);border-radius:2px;max-width:40px;">
+            <div style="height:100%;width:${incPct}%;background:${incColor};border-radius:2px;"></div>
+          </div>
+          ${repeatTag}
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem;">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;max-width:60px;">
+            <div style="height:100%;width:${risk}%;background:${riskColor};border-radius:3px;transition:width .6s;"></div>
+          </div>
+          <span style="font-size:.72rem;font-weight:700;color:${riskColor};min-width:28px;">${risk}</span>
+          <span style="font-size:.62rem;color:var(--text3);">${riskLabel}</span>
+        </div>
+      </td>
+      <td><span class="status-pill ${stClass}">${stLabel}</span></td>
     `;
     tr.onclick = () => showDriverDetail(tr, drv, incCount);
     tbody.appendChild(tr);
@@ -455,8 +530,8 @@ function initMap() {
   const mapContainer = document.getElementById('map-leaflet');
   if (!mapContainer || leafletMap) return;
   
-  // London center: 51.5060, -0.1360
-  leafletMap = L.map('map-leaflet').setView([51.5060, -0.1360], 14);
+  // Abu Dhabi center
+  leafletMap = L.map('map-leaflet').setView([24.4539, 54.3773], 13);
   
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -480,9 +555,9 @@ async function updateMapLayers(scenarioNum) {
   const data = await apiFetch("/fleet/routes");
   if (!data || !data.success) return;
   
-  const depot = [51.5030, -0.1500];
-  const school = [51.5120, -0.1220];
-  const roadblockCoords = [51.5070, -0.1420];
+  const depot = [24.4361, 54.3525];   // Mussafah Bus Depot, Abu Dhabi
+  const school = [24.4672, 54.3710];  // Al Mushrif School Zone, Abu Dhabi
+  const roadblockCoords = [24.4539, 54.3650]; // Khalidiyah area
   
   // 1. Add School and Depot Markers
   const depotMarker = L.marker(depot, {
@@ -492,7 +567,7 @@ async function updateMapLayers(scenarioNum) {
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     })
-  }).bindPopup("<b>Bus Depot</b><br>Hyde Park Corner").addTo(leafletMap);
+  }).bindPopup("<b>Bus Depot</b><br>Mussafah Transport Hub, Abu Dhabi").addTo(leafletMap);
   
   const schoolMarker = L.marker(school, {
     icon: L.divIcon({
@@ -501,22 +576,22 @@ async function updateMapLayers(scenarioNum) {
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     })
-  }).bindPopup("<b>Covent Garden School</b>").addTo(leafletMap);
+  }).bindPopup("<b>Al Mushrif School</b><br>Abu Dhabi ADEK Zone").addTo(leafletMap);
   
   markerLayers.push(depotMarker, schoolMarker);
 
   // 2. Render routes based on scenario
   if (scenarioNum === 2) {
     // Scenario 2: Grounded / Breakdown Student Merge
-    // Draw Grounded Bus 2 (AU-BUS-104) at Piccadilly
-    const groundedBus = L.marker([51.5075, -0.1400], {
+    // Draw Grounded Bus 2 (AU-BUS-104) at Khalidiyah
+    const groundedBus = L.marker([24.4490, 54.3600], {
       icon: L.divIcon({
         html: '<span style="font-size: 24px;">🚨</span>',
         className: 'map-marker-emoji',
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       })
-    }).bindPopup("<b>Grounded Bus (AU-BUS-104)</b><br>Brake pressure failure.<br>12 students stranded.").addTo(leafletMap);
+    }).bindPopup("<b>Grounded Bus (AU-BUS-104)</b><br>Brake pressure failure.<br>Students held safely on board.").addTo(leafletMap);
     
     // Draw Standby Bus 1 (AU-BUS-106) route (merge route)
     const mergeGeoJSON = L.geoJSON(data.paths.merge, {
@@ -544,12 +619,12 @@ async function updateMapLayers(scenarioNum) {
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       })
-    }).bindPopup("<b>Piccadilly Roadblock Closure</b>").addTo(leafletMap);
+    }).bindPopup("<b>Khalidiyah Road Closure</b><br>Abu Dhabi").addTo(leafletMap);
     
     // Draw detour route
     const detourGeoJSON = L.geoJSON(data.paths.detour, {
       style: { color: '#f97316', weight: 5, opacity: 0.85 }
-    }).bindPopup("<b>Detour Route</b><br>Avoiding Piccadilly").addTo(leafletMap);
+    }).bindPopup("<b>Detour Route</b><br>Avoiding Khalidiyah closure").addTo(leafletMap);
     
     const bus = L.marker(depot, {
       icon: L.divIcon({
@@ -567,7 +642,7 @@ async function updateMapLayers(scenarioNum) {
     // Normal / Scenario 0 & 1
     const normalGeoJSON = L.geoJSON(data.paths.normal, {
       style: { color: '#8b5cf6', weight: 5, opacity: 0.8 }
-    }).bindPopup("<b>Standard Route</b><br>Depot to Covent Garden").addTo(leafletMap);
+    }).bindPopup("<b>Standard Route</b><br>Mussafah Depot → Al Mushrif School").addTo(leafletMap);
     
     const bus = L.marker(depot, {
       icon: L.divIcon({
@@ -915,14 +990,14 @@ function getFallbackHistory(num) {
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
       { agent: 'Safety Agent', text: '⚠️ [Distraction Triggered] Cabin camera feed on Bus AU-BUS-105 shows driver looking at phone for >4 seconds.', tool: 'Cabin Camera Edge Sensor, Incident MCP', action: 'Flagged unsafe cabin behavior (distraction).' },
-      { agent: 'Compliance Agent', text: '✅ [Compliance] Safety Risk: High · Evidence Confidence: 94% · Driver DRV-4412 (Yousef Hassan): 4 prior incidents — REPEAT OFFENDER. ADEK Reg 4.2.1 (Mobile Device Use While Driving) violated. ACTION: SUSPEND. GROUND_VEHICLE: NO. Permit suspended & synced to ADEK Gov Portal.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Suspended DRV-4412 & synced with ADEK Gov Portal' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] Safety Risk: High · Evidence Confidence: 94% · Driver DRV-1001 (Mohammed Al Rashidi): 4 prior incidents — REPEAT OFFENDER. ADEK Reg 4.2.1 (Mobile Device Use While Driving) violated. ACTION: SUSPEND. GROUND_VEHICLE: NO. Permit suspended & synced to ADEK Gov Portal.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Suspended DRV-1001 & synced with ADEK Gov Portal' },
       { agent: 'Incident Agent', text: '🚨 Creating emergency ticket INC-2026-882.', tool: 'Notification MCP, Incident Database', action: 'Auto-logged incident ticket INC-2026-882.' },
       { agent: 'Executive Agent', text: '📊 Logged. Fleet safety score reduced to 94.2%.', tool: 'Analytics MCP', action: 'Updated safety scorecard metrics.' }
     ],
     [
       { agent: 'Supervisor Agent', text: '🧠 Supervisor coordinated execution pipeline.', tool: 'LangGraph State Router', action: 'Routed workflow autonomously to Safety Agent.' },
       { agent: 'Safety Agent', text: '⚠️ [Missing Guardian] Supervisor on Route AU-102 reports Grade 2 student Guardian not present at stop #4.', tool: 'Route Supervisor SOP App', action: 'Activated student retention safety protocol.' },
-      { agent: 'Compliance Agent', text: '✅ [Compliance] RAG: ADEK Reg 14.2 — students under Grade 3 must not be left unattended at drop-off. Driver DRV-2089: 1 prior incident (first offence, low risk). ACTION: ASSIGN_TRAINING. GROUND_VEHICLE: NO. Remedial training assigned, ADEK notified.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Assigned training to DRV-2089 & notified ADEK' },
+      { agent: 'Compliance Agent', text: '✅ [Compliance] RAG: ADEK Reg 14.2 — students under Grade 3 must not be left unattended at drop-off. Driver DRV-1004: 1 prior incident (first offence, low risk). ACTION: ASSIGN_TRAINING. GROUND_VEHICLE: NO. Remedial training assigned, ADEK notified.', tool: 'RAG + Incident History DB + Driver & Vehicle MCPs', action: 'Assigned training to DRV-1004 & notified ADEK' },
       { agent: 'Incident Agent', text: '🚨 Alerting parent via WhatsApp: Student remains safely on bus.', tool: 'Notification MCP, Incident Database', action: 'Sent automated SMS notification to registered parent.' }
     ],
     [
@@ -939,7 +1014,7 @@ function getFallbackHistory(num) {
     [
       { agent: 'Supervisor Agent', text: '🧠 Pre-departure check initiated for DRV-1045 on AU-BUS-105. Running deterministic compliance gate before LLM pipeline.', tool: 'LangGraph State Router', action: 'Routed to Compliance Agent — Pre-departure gate.' },
       { agent: 'Compliance Agent', text: '🚫 [Pre-Departure FAILED] Driver DRV-1045 (Khalid Al Remeithi) · Permit: Suspended · Medical: Expired · Training: Pending Refresher. ADEK Operator Reg 3.1 — driver banned immediately. Permit status set to Suspended, ADEK Gov Portal synced.', tool: 'mcp_update_driver_status + mcp_sync_permit_status_with_gov + mcp_find_available_driver', action: 'Banned DRV-1045 — synced with ADEK Gov Portal' },
-      { agent: 'Compliance Agent', text: '🔄 Replacement driver search: Found DRV-1024 (Zayed Al Mansoori, Emirates Transport) — fully compliant. Permit: Valid · Medical: Passed · Training: Complete. Route AU-BUS-105 re-assigned. Departure cleared.', tool: 'mcp_find_available_driver', action: 'Replacement DRV-1024 allocated to AU-BUS-105' },
+      { agent: 'Compliance Agent', text: '🔄 Replacement driver search: Found DRV-1001 (Mohammed Al Rashidi, Emirates Transport) — fully compliant. Permit: Valid · Medical: Passed · Training: Complete. Route AU-BUS-105 re-assigned. Departure cleared.', tool: 'mcp_find_available_driver', action: 'Replacement DRV-1001 allocated to AU-BUS-105' },
       { agent: 'Incident Agent', text: '🚨 Incident ticket INC-2026-PRE-001 created. Operator Emirates Transport notified. Replacement driver dispatched. Route delay: ~8 minutes.', tool: 'Incident MCP + Notification MCP', action: 'Auto-logged pre-departure violation — operator notified.' }
     ]
   ];
@@ -954,6 +1029,20 @@ function clearAgentLog() {
   document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('running'));
   resetDiagramHighlights();
   scenarioRunning = false;
+}
+
+async function resetDemo() {
+  try {
+    const res = await apiFetch('/agents/reset_demo', { method: 'POST' });
+    if (res && res.success) {
+      clearAgentLog();
+      const conv = document.getElementById('agent-conversation');
+      if (conv) conv.innerHTML = '<div class="conv-placeholder" style="color:#10b981;">✅ Demo reset — ' + (res.incidents_resolved || 0) + ' incidents resolved. All 5 scenarios ready.</div>';
+      setTimeout(() => { loadIncidentsData(); loadKPIs(); }, 500);
+    }
+  } catch (e) {
+    console.warn('Reset failed:', e);
+  }
 }
 
 function toggleArch() {
@@ -979,6 +1068,7 @@ function highlightDiagramNode(agentName) {
   else if (agentName.includes('Safety')) document.getElementById('arch-safety').classList.add('active');
   else if (agentName.includes('Incident')) document.getElementById('arch-incident').classList.add('active');
   else if (agentName.includes('Route')) document.getElementById('arch-route').classList.add('active');
+  else if (agentName.includes('Evidence')) { const el = document.getElementById('arch-evidence'); if (el) el.classList.add('active'); }
   else if (agentName.includes('Fleet')) { const el = document.getElementById('arch-fleet'); if (el) el.classList.add('active'); }
   else if (agentName.includes('Executive')) document.getElementById('arch-exec').classList.add('active');
 }
@@ -1034,21 +1124,54 @@ async function loadKPIs() {
   if (!data) return;
   const el = (id) => document.getElementById(id);
 
-  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = data.manual_overrides !== undefined ? data.manual_overrides.toString() : '0';
-  if (el('kpi-resolved-count')) el('kpi-resolved-count').textContent = data.resolved_incidents !== undefined ? data.resolved_incidents.toString() : '0';
-  const incSub = document.querySelector('#kpi-incidents .kpi-sub');
-  if (incSub) incSub.textContent = `Escalated by Supervisor Agent`;
-  const incBar = document.querySelector('#kpi-incidents .kpi-fill');
+  // Open incidents (from DB, not manual_overrides)
+  const openInc = data.open_incidents !== undefined ? data.open_incidents : 0;
+  if (el('kpi-open-incidents')) el('kpi-open-incidents').textContent = openInc.toString();
+  const incBar = el('kpi-incidents-bar');
   if (incBar) {
-    const total = (data.open_incidents || 0) + (data.resolved_incidents || 0);
-    const pct = total > 0 ? Math.round(((data.manual_overrides || 0) / total) * 100) : 0;
+    const total = openInc + (data.resolved_incidents || 0);
+    const pct = total > 0 ? Math.min(100, Math.round((openInc / total) * 100)) : 0;
     incBar.style.width = `${pct}%`;
   }
+  const incSub = el('kpi-students-sub');
+  if (incSub) {
+    const students = data.students_in_transit || 0;
+    const high = data.high_incidents || 0;
+    incSub.textContent = `${high} critical · ${students} students in transit`;
+  }
 
+  // Resolved incidents
+  const resolved = data.resolved_incidents !== undefined ? data.resolved_incidents : 0;
+  if (el('kpi-resolved-count')) el('kpi-resolved-count').textContent = resolved.toString();
+  const resolvedBar = el('kpi-resolved-bar');
+  if (resolvedBar) {
+    const total = openInc + resolved;
+    const pct = total > 0 ? Math.round((resolved / total) * 100) : 0;
+    resolvedBar.style.width = `${pct}%`;
+  }
+
+  // Fleet compliance score
+  const score = data.compliance_score !== undefined ? data.compliance_score : 0;
+  if (el('kpi-compliance-score')) el('kpi-compliance-score').innerHTML = `${score}<span class="kpi-unit">%</span>`;
+  const compBar = el('kpi-compliance-bar');
+  if (compBar) compBar.style.width = `${score}%`;
+
+  // Fleet health bars
   if (el('hbar-gps')) el('hbar-gps').style.width = `${data.gps_active_pct}%`;
   if (el('hval-gps')) el('hval-gps').textContent = `${data.gps_active_pct}%`;
   if (el('hbar-insp')) el('hbar-insp').style.width = `${data.inspection_valid_pct}%`;
   if (el('hval-insp')) el('hval-insp').textContent = `${data.inspection_valid_pct}%`;
+
+  // Fleet section header badges (updated from real data)
+  const fleetSub = el('fleet-sub-text');
+  if (fleetSub) fleetSub.textContent = `${data.total_buses || 0} buses · GPS tracking · Maintenance status`;
+  const opBadge = el('fleet-operational-badge');
+  const grBadge = el('fleet-grounded-badge');
+  if (opBadge) opBadge.textContent = `${data.active_buses || 0} Operational`;
+  if (grBadge) {
+    const grounded = (data.total_buses || 0) - (data.active_buses || 0);
+    grBadge.textContent = `${grounded} Grounded`;
+  }
 }
 
 // --- COMPLIANCE DATA: FINES, SLAs, BOARDINGS ---
@@ -1211,15 +1334,49 @@ function showDriverDetail(tr, drv, incCount) {
   tr.style.background = 'rgba(59,130,246,.08)';
   const detail = document.createElement('tr');
   detail.className = 'driver-detail-row';
-  const riskColor = drv.is_repeat_offender || incCount >= 3 ? '#ef4444' : incCount >= 1 ? '#f59e0b' : '#10b981';
-  const riskLabel = drv.is_repeat_offender || incCount >= 3 ? 'HIGH — Repeat Offender' : incCount >= 1 ? 'MEDIUM' : 'LOW';
+  // Recompute risk score for detail panel
+  let riskScore2 = 100;
+  if (drv.permit_status !== 'Valid')                        riskScore2 -= 40;
+  if (drv.medical_status === 'Expired')                     riskScore2 -= 25;
+  else if (drv.medical_status !== 'Passed')                 riskScore2 -= 30;
+  if (drv.training_status.includes('Pending'))              riskScore2 -= 15;
+  else if (drv.training_status.includes('Failed'))          riskScore2 -= 25;
+  riskScore2 -= Math.min(35, incCount * 10);
+  if (drv.is_repeat_offender || incCount >= 3)              riskScore2 -= 10;
+  riskScore2 = Math.max(0, riskScore2);
+  const riskColor = riskScore2 >= 80 ? '#10b981' : riskScore2 >= 50 ? '#f59e0b' : '#ef4444';
+  const riskLabel = riskScore2 >= 80 ? 'LOW RISK' : riskScore2 >= 50 ? 'MEDIUM RISK' : 'HIGH RISK — Action Required';
+  const agentAction = drv.permit_status === 'Suspended'
+    ? '🔴 Suspended by Compliance Agent — ADEK Gov Portal synced'
+    : (drv.is_repeat_offender || incCount >= 3)
+      ? '🟡 Flagged as Repeat Offender — Training SLA enforced'
+      : incCount >= 1
+        ? '🟡 Prior incidents on record — Monitoring active'
+        : '🟢 Fully compliant — No action required';
   detail.innerHTML = `
-    <td colspan="7" style="background:var(--bg3);padding:.75rem 1rem;font-size:.78rem;border-left:3px solid ${riskColor};">
-      <div style="display:flex;gap:2rem;flex-wrap:wrap;">
-        <div><strong style="color:var(--text2)">Operator</strong><br>${drv.operator || '—'}</div>
-        <div><strong style="color:var(--text2)">Prior Incidents</strong><br><span style="color:${riskColor};font-weight:700">${incCount}</span></div>
-        <div><strong style="color:var(--text2)">Risk Profile</strong><br><span style="color:${riskColor};font-weight:700">${riskLabel}</span></div>
-        <div><strong style="color:var(--text2)">Compliance Agent Action</strong><br>${drv.permit_status === 'Suspended' ? '🔴 Suspended by Compliance Agent' : incCount >= 1 ? '🟡 Training SLA assigned' : '🟢 Compliant — No action required'}</div>
+    <td colspan="8" style="background:var(--bg3);padding:.9rem 1.1rem;font-size:.78rem;border-left:3px solid ${riskColor};">
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start;">
+        <div>
+          <div style="font-size:.65rem;color:var(--text3);margin-bottom:.2rem;">RISK SCORE</div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <div style="width:70px;height:7px;background:var(--border);border-radius:4px;">
+              <div style="height:100%;width:${riskScore2}%;background:${riskColor};border-radius:4px;"></div>
+            </div>
+            <span style="color:${riskColor};font-weight:800;font-size:.9rem;">${riskScore2}</span>
+            <span style="color:${riskColor};font-size:.68rem;font-weight:600;">${riskLabel}</span>
+          </div>
+        </div>
+        <div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.2rem;">OPERATOR</div><span style="font-weight:600;">${drv.operator || '—'}</span></div>
+        <div>
+          <div style="font-size:.65rem;color:var(--text3);margin-bottom:.2rem;">COMPLIANCE CHECKS</div>
+          <div style="display:flex;gap:.6rem;font-size:.75rem;">
+            <span style="color:${drv.permit_status === 'Valid' ? '#10b981' : '#ef4444'}">● Permit: ${drv.permit_status}</span>
+            <span style="color:${drv.medical_status === 'Passed' ? '#10b981' : '#f59e0b'}">● Medical: ${drv.medical_status}</span>
+            <span style="color:${drv.training_status === 'Complete' ? '#10b981' : '#f59e0b'}">● Training: ${drv.training_status}</span>
+          </div>
+        </div>
+        <div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.2rem;">PRIOR INCIDENTS</div><span style="color:${riskColor};font-weight:700;font-size:.9rem;">${incCount}</span></div>
+        <div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.2rem;">COMPLIANCE AGENT ACTION</div><span style="font-size:.75rem;">${agentAction}</span></div>
       </div>
     </td>`;
   tr.after(detail);
@@ -1230,6 +1387,7 @@ window.onload = function() {
   initRouteGrid();
   loadFleetData();
   loadIncidentsData();
+  loadComplianceData();
   initCharts();
   loadKPIs();
 

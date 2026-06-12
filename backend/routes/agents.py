@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..agents.graph import run_agentic_flow
+from ..database.connection import get_db_connection
 from typing import List, Dict, Any
 import time
 
@@ -39,6 +40,25 @@ def run_scenario_endpoint(req: ScenarioRun):
         return {"success": True, "history": history}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/reset_demo")
+def reset_demo():
+    """Resolve all active agent-created incidents so all 5 scenarios can run fresh.
+    Call this between demo runs via the frontend Reset button."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE incidents SET status = 'Resolved' WHERE status NOT IN ('Resolved', 'Closed')")
+        resolved = cursor.rowcount
+        cursor.execute("UPDATE drivers SET permit_status = 'Valid' WHERE driver_id IN ('DRV-1045', 'DRV-1004', 'DRV-1015') AND permit_status = 'Suspended'")
+        conn.commit()
+        RECENT_RUNS.clear()
+        return {"success": True, "incidents_resolved": resolved, "message": "Demo state reset — all scenarios ready to run."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
 
 @router.post("/supervisor/event")
 def supervisor_event_endpoint(req: ScenarioRun):

@@ -215,12 +215,12 @@ def seed_database():
         drv    = f"DRV-{1000 + i}"   # DRV-1001..DRV-1020
 
         if veh_id == "AU-BUS-104":
-            occ, lat, lon = 12, 51.5075, -0.1400
-            route = "London-Route-A"
+            occ, lat, lon = 12, 24.4490, 54.3600
+            route = "ADRoute-04"
             insp  = "valid"
             gps   = "online"
         elif veh_id == "AU-BUS-106":
-            occ, lat, lon = 0, 51.5030, -0.1500
+            occ, lat, lon = 0, 24.4539, 54.3773
             route = "Standby"
             insp  = "valid"
             gps   = "online"
@@ -235,10 +235,10 @@ def seed_database():
 
     cursor.executemany("INSERT INTO vehicles VALUES (?,?,?,?,?,?,?,?,?,?,?)", vehicles_data)
 
-    # ── ROADBLOCK (London Piccadilly, for scenario 2) ─────────────────────
+    # ── ROADBLOCK (Khalidiyah area, Abu Dhabi, for route detour scenario) ───
     cursor.execute(
         "INSERT INTO roadblocks VALUES (?,?,?,?,?)",
-        ("RB-LONDON-01", 51.5070, -0.1420, 100.0, "Piccadilly (Green Park) Road Closure")
+        ("RB-ADEK-01", 24.4539, 54.3650, 100.0, "Khalidiyah Road Closure — Al Khaleej Al Arabi St")
     )
 
     # ── PARENTS (80) ──────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ def seed_database():
         ("Minor Delay",               "low",  "Delay due to traffic congestion."),
         ("Route Deviation",           "med",  "Vehicle deviated from assigned route."),
     ]
-    statuses = ["Detected", "Validation", "Notification", "Investigation", "Resolution", "Resolved"]
+    statuses = ["Resolved"]  # Historical incidents are always resolved; new ones come from live agent runs
     evidence_urls = [
         "https://storage.adek.gov.ae/evidence/collision_ch23.mp4",
         "https://storage.adek.gov.ae/evidence/distracted_drv_99.jpg",

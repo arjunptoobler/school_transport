@@ -1,14 +1,13 @@
 import datetime
 import uuid
 import logging
-from .base import mcp_registry
+from .base import mcp
 from ..database.connection import get_db_connection
 
 logger = logging.getLogger(__name__)
 
 
 def _write_audit_log(conn, incident_id: str, agent: str, action: str, detail: str):
-    """Internal helper to write a timestamped audit entry to incident_audit_log."""
     log_id = f"LOG-{uuid.uuid4().hex[:8].upper()}"
     timestamp = datetime.datetime.now().isoformat()
     conn.execute(
@@ -24,20 +23,12 @@ def batch_write_history_to_audit_log(incident_id: str, history: list):
         cursor = conn.cursor()
         for idx, step in enumerate(history):
             log_id = f"LOG-{uuid.uuid4().hex[:8].upper()}"
-            # Add a slight delay to timestamp to keep chronological order if they were fast
             dt = datetime.datetime.now() - datetime.timedelta(seconds=len(history) - idx)
             agent = step.get("agent", "Unknown Agent")
-            
-            # Extract action text or use tool name
-            # The user wants to see EXACT INTELLIGENCE. The rich intelligence is in step["text"].
-            action = step.get("text", "")
-            if not action or action == "None":
-                action = step.get("action", "Analyzed Context")
-                
+            action = step.get("text", "") or step.get("action", "Analyzed Context")
             tool_name = step.get("tool", "Internal Logic")
             exec_action = step.get("action", "N/A")
             detail = f"{tool_name} → {exec_action}"
-            
             cursor.execute(
                 "INSERT INTO incident_audit_log (log_id, incident_id, agent, action, detail, timestamp) VALUES (?,?,?,?,?,?)",
                 (log_id, incident_id, agent, action, detail, dt.isoformat()),
@@ -47,29 +38,18 @@ def batch_write_history_to_audit_log(incident_id: str, history: list):
         conn.close()
 
 
-@mcp_registry.register_tool(name="mcp_create_incident")
-def create_incident(severity: str, type: str, driver_id: str, vehicle_id: str, description: str, agent: str = "Incident Agent"):
+@mcp.tool(name="mcp_create_incident")
+def create_incident(severity: str, type: str, driver_id: str, vehicle_id: str, description: str, agent: str = "Incident Agent") -> dict:
     """File a compliance or safety incident in the master database and write the initial audit log entry."""
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
         inc_id = f"INC-{uuid.uuid4().hex[:8].upper()}"
         timestamp = datetime.datetime.now().isoformat()
-
-        # Check if incidents table has 9 columns (with evidence_url) or 8
-        cursor.execute("PRAGMA table_info(incidents)")
-        cols = [r["name"] for r in cursor.fetchall()]
-        if "evidence_url" in cols:
-            cursor.execute(
-                "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?)",
-                (inc_id, severity, type, driver_id, vehicle_id, timestamp, description, "Detected", "None"),
-            )
-        else:
-            cursor.execute(
-                "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?)",
-                (inc_id, severity, type, driver_id, vehicle_id, timestamp, description, "Detected"),
-            )
-
+        cursor.execute(
+            "INSERT INTO incidents VALUES (?,?,?,?,?,?,?,?,?)",
+            (inc_id, severity, type, driver_id, vehicle_id, timestamp, description, "Detected", "None"),
+        )
         _write_audit_log(conn, inc_id, agent, "Incident Created",
                          f"Severity={severity.upper()} · Type={type} · Driver={driver_id} · Vehicle={vehicle_id}")
         conn.commit()
@@ -87,8 +67,8 @@ def create_incident(severity: str, type: str, driver_id: str, vehicle_id: str, d
         conn.close()
 
 
-@mcp_registry.register_tool(name="mcp_get_open_incidents")
-def get_open_incidents(limit: int = 20):
+@mcp.tool(name="mcp_get_open_incidents")
+def get_open_incidents(limit: int = 20) -> list:
     """Query recent incident records sorted chronologically including their lifecycle status."""
     conn = get_db_connection()
     try:
@@ -112,8 +92,8 @@ def get_open_incidents(limit: int = 20):
         conn.close()
 
 
-@mcp_registry.register_tool(name="mcp_update_incident_status")
-def update_incident_status(incident_id: str, status: str, agent: str = "System", reason: str = ""):
+@mcp.tool(name="mcp_update_incident_status")
+def update_incident_status(incident_id: str, status: str, agent: str = "System", reason: str = "") -> dict:
     """Update the event lifecycle status of an incident and write a timestamped audit entry."""
     conn = get_db_connection()
     try:
@@ -127,12 +107,9 @@ def update_incident_status(incident_id: str, status: str, agent: str = "System",
         conn.close()
 
 
-@mcp_registry.register_tool(name="mcp_flag_for_manual_override")
+@mcp.tool(name="mcp_flag_for_manual_override")
 def flag_for_manual_override(incident_id: str, reason: str, dispatcher_id: str = "CMD-CENTER-AUTO") -> dict:
-    """
-    Halts autonomous resolution and flags an incident for human-in-the-loop Command Center review.
-    Writes an audit log entry to record the override event.
-    """
+    """Halt autonomous resolution and flag an incident for human-in-the-loop Command Center review."""
     conn = get_db_connection()
     try:
         conn.execute("UPDATE incidents SET status = 'Manual Override' WHERE incident_id = ?", (incident_id,))
@@ -143,7 +120,7 @@ def flag_for_manual_override(incident_id: str, reason: str, dispatcher_id: str =
             "status": "Halted Workflow",
             "incident_id": incident_id,
             "override_reason": reason,
-            "dispatcher_id": dispatcher_id
+            "dispatcher_id": dispatcher_id,
         }
     finally:
         conn.close()

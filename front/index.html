@@ -68,9 +68,9 @@
       <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
         <div class="kpi-card kpi-purple" id="kpi-agents-active">
           <div class="kpi-icon">🤖</div>
-          <div class="kpi-value" id="kpi-agents-count">7</div>
+          <div class="kpi-value" id="kpi-agents-count">8</div>
           <div class="kpi-label">AI Agents Active</div>
-          <div class="kpi-sub">LangGraph orchestrated</div>
+          <div class="kpi-sub">LangGraph · 27 MCP Tools wired</div>
           <div class="agent-pulses">
             <span class="apulse apulse-1"></span>
             <span class="apulse apulse-2"></span>
@@ -79,24 +79,24 @@
         </div>
         <div class="kpi-card kpi-success" id="kpi-auto-resolved">
           <div class="kpi-icon">⚡</div>
-          <div class="kpi-value" id="kpi-resolved-count">142</div>
+          <div class="kpi-value" id="kpi-resolved-count">—</div>
           <div class="kpi-label">Incidents Auto-Resolved</div>
-          <div class="kpi-sub">Zero human intervention</div>
-          <div class="kpi-bar"><div class="kpi-fill" style="width:100%"></div></div>
+          <div class="kpi-sub">Zero human intervention required</div>
+          <div class="kpi-bar"><div class="kpi-fill" id="kpi-resolved-bar" style="width:0%"></div></div>
         </div>
-        <div class="kpi-card kpi-primary" id="kpi-interventions">
-          <div class="kpi-icon">✋</div>
-          <div class="kpi-value" id="kpi-intervention-count">89<span class="kpi-unit">%</span></div>
-          <div class="kpi-label">Intervention Reduction</div>
-          <div class="kpi-sub">Compared to last month</div>
-          <div class="kpi-bar"><div class="kpi-fill" style="width:89%"></div></div>
+        <div class="kpi-card kpi-primary" id="kpi-compliance">
+          <div class="kpi-icon">🎯</div>
+          <div class="kpi-value" id="kpi-compliance-score">—<span class="kpi-unit">%</span></div>
+          <div class="kpi-label">Fleet Compliance Score</div>
+          <div class="kpi-sub">Valid permit + training complete</div>
+          <div class="kpi-bar"><div class="kpi-fill" id="kpi-compliance-bar" style="width:0%"></div></div>
         </div>
         <div class="kpi-card kpi-warning" id="kpi-incidents">
           <div class="kpi-icon">⚠️</div>
-          <div class="kpi-value" id="kpi-open-incidents">2</div>
-          <div class="kpi-label">Awaiting Human Review</div>
-          <div class="kpi-sub">Escalated by Supervisor Agent</div>
-          <div class="kpi-bar"><div class="kpi-fill kpi-fill-warn" style="width:15%"></div></div>
+          <div class="kpi-value" id="kpi-open-incidents">—</div>
+          <div class="kpi-label">Open Incidents</div>
+          <div class="kpi-sub" id="kpi-students-sub">Loading live data…</div>
+          <div class="kpi-bar"><div class="kpi-fill kpi-fill-warn" id="kpi-incidents-bar" style="width:0%"></div></div>
         </div>
       </div>
 
@@ -134,11 +134,11 @@
       <div class="section-header">
         <div>
           <h1 class="section-title">Fleet View</h1>
-          <p class="section-sub">250 vehicles · GPS tracking · Maintenance status</p>
+          <p class="section-sub" id="fleet-sub-text">Loading fleet data…</p>
         </div>
         <div class="header-badges">
-          <span class="badge badge-green">247 Operational</span>
-          <span class="badge badge-red">3 Grounded</span>
+          <span class="badge badge-green" id="fleet-operational-badge">— Operational</span>
+          <span class="badge badge-red" id="fleet-grounded-badge">— Grounded</span>
         </div>
       </div>
       <div class="fleet-layout">
@@ -213,7 +213,7 @@
             <table class="data-table" id="driver-table">
               <thead>
                 <tr>
-                  <th>Driver ID</th><th>Name</th><th>Permit</th><th>Medical</th><th>Training</th><th>Incidents</th><th>Status</th>
+                  <th>Driver</th><th>Operator</th><th style="text-align:center">Permit</th><th style="text-align:center">Medical</th><th style="text-align:center">Training</th><th>Incidents</th><th>Risk Score</th><th>Status</th>
                 </tr>
               </thead>
               <tbody id="driver-tbody"></tbody>
@@ -236,7 +236,7 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><span class="card-title">⏱️ Training SLA Deadlines</span><span class="badge badge-yellow" id="sla-count-badge">—</span></div>
+          <div class="card-header"><span class="card-title">⏱️ Training SLA Deadlines</span><span class="badge badge-warn" id="sla-count-badge">—</span></div>
           <div class="sla-list" id="sla-list"></div>
         </div>
       </div>
@@ -342,7 +342,7 @@
         </div>
         <div class="header-badges">
           <span class="badge badge-purple">LangGraph</span>
-          <span class="badge badge-green">7 Agents Live</span>
+          <span class="badge badge-green">8 Agents Live</span>
         </div>
       </div>
 
@@ -350,44 +350,61 @@
       <div class="scenario-grid">
         <div class="scenario-card" id="scenario-0" onclick="runScenario(0)">
           <span class="sc-num">#01</span>
+          <div class="sc-wf-tag">WF1 · Safety Pipeline</div>
           <div class="sc-icon">📱</div>
           <div class="sc-title">Mobile Phone Distraction</div>
-          <div class="sc-desc">Driver DRV-4412 · Cabin camera · Repeat offender</div>
-          <div class="sc-result">ADEK Reg 4.2.1 — Driver Suspended</div>
+          <div class="sc-desc">Bus AU-BUS-105 · ADAS cabin camera · Repeat offender detected</div>
+          <div class="sc-result">ADEK Reg 4.2.1 — Permit Suspended · Fine Issued · ADEK Portal Synced</div>
+          <div class="sc-agents">Supervisor → Safety → Evidence → Compliance → Incident → Executive</div>
           <button class="sc-btn">▶ Run Scenario</button>
         </div>
         <div class="scenario-card" id="scenario-1" onclick="runScenario(1)">
           <span class="sc-num">#02</span>
+          <div class="sc-wf-tag">WF3 · Guardian Pipeline</div>
           <div class="sc-icon">👨‍👦</div>
-          <div class="sc-title">Missing Guardian</div>
-          <div class="sc-desc">Bus AU-BUS-102 · Stop #4 · Grade 2 student</div>
-          <div class="sc-result">ADEK Reg 14.2 — Training Assigned</div>
+          <div class="sc-title">Missing Guardian at Drop-off</div>
+          <div class="sc-desc">Bus AU-BUS-102 · Stop #4 · Grade 2 student unattended</div>
+          <div class="sc-result">ADEK Reg 14.2 — Training SLA Assigned · Parent SMS Sent</div>
+          <div class="sc-agents">Supervisor → Fleet → Compliance → Incident</div>
           <button class="sc-btn">▶ Run Scenario</button>
         </div>
         <div class="scenario-card" id="scenario-2" onclick="runScenario(2)">
           <span class="sc-num">#03</span>
+          <div class="sc-wf-tag">WF4 · Hardware Pipeline</div>
           <div class="sc-icon">🚨</div>
-          <div class="sc-title">Pre-Trip Inspection Fail</div>
-          <div class="sc-desc">Bus AU-BUS-104 · Braking failure · GPS offline</div>
-          <div class="sc-result">Fleet Rule 9.1 — Vehicle Grounded</div>
+          <div class="sc-title">Pre-Trip Hardware Failure</div>
+          <div class="sc-desc">Bus AU-BUS-104 · Brake pressure failure · GPS offline</div>
+          <div class="sc-result">Fleet Rule 9.1 — Bus Grounded · Standby AU-BUS-106 Dispatched</div>
+          <div class="sc-agents">Supervisor → Evidence → Fleet → Route Optimization → Incident</div>
           <button class="sc-btn">▶ Run Scenario</button>
         </div>
         <div class="scenario-card" id="scenario-3" onclick="runScenario(3)">
           <span class="sc-num">#04</span>
+          <div class="sc-wf-tag">WF6 · Executive Pipeline</div>
           <div class="sc-icon">📊</div>
           <div class="sc-title">Executive C-Level Report</div>
-          <div class="sc-desc">Weekly KPI brief · SLA audit · Risk matrix</div>
-          <div class="sc-result">Executive Agent — Board Summary</div>
+          <div class="sc-desc">Live KPI fetch · SLA audit · Open incident summary</div>
+          <div class="sc-result">Executive Agent — Board-Ready Summary with Live DB Metrics</div>
+          <div class="sc-agents">Supervisor → Executive</div>
           <button class="sc-btn">▶ Run Scenario</button>
         </div>
         <div class="scenario-card" id="scenario-4" onclick="runScenario(4)">
           <span class="sc-num">#05</span>
+          <div class="sc-wf-tag">Pre-Departure Gate</div>
           <div class="sc-icon">🚫</div>
-          <div class="sc-title">Pre-Departure Driver Check</div>
-          <div class="sc-desc">Driver starts vehicle · Expired permit detected · Auto-banned</div>
-          <div class="sc-result">Operator Reg 3.1 — Banned + Replacement Allocated</div>
+          <div class="sc-title">Pre-Departure Driver Ban</div>
+          <div class="sc-desc">DRV-1045 · Suspended permit · Expired medical · Pending training</div>
+          <div class="sc-result">Operator Reg 3.1 — Banned · Replacement Found · Gov Portal Synced</div>
+          <div class="sc-agents">Supervisor → Compliance → Incident</div>
           <button class="sc-btn">▶ Run Scenario</button>
         </div>
+      </div>
+
+      <!-- DEMO RESET -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button onclick="resetDemo()" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#f87171;padding:.45rem 1.1rem;border-radius:8px;font-size:.82rem;cursor:pointer;font-family:'Inter',sans-serif;">
+          🔄 Reset Demo State
+        </button>
       </div>
 
       <!-- CUSTOM EVENT INPUT -->
@@ -436,6 +453,7 @@
             <div class="arch-arrow">↓</div>
             <div class="arch-agents-row">
               <div class="arch-node arch-agent" id="arch-safety">🛡️ Safety<br><small>Camera · Edge AI</small></div>
+              <div class="arch-node arch-agent" id="arch-evidence">👁️ Evidence<br><small>Telemetry · Capture</small></div>
               <div class="arch-node arch-agent" id="arch-compliance">✅ Compliance<br><small>RAG · Policy</small></div>
               <div class="arch-node arch-agent" id="arch-route">🗺️ Route Opt<br><small>Detour · ETA</small></div>
               <div class="arch-node arch-agent" id="arch-fleet">🚌 Fleet Monitor<br><small>GPS · Capacity</small></div>

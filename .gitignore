@@ -3,7 +3,7 @@ __pycache__/
 *.pyo
 .DS_Store
 myenv/
-
+.venv/
 # Runtime data — regenerated on startup (do NOT commit these)
 backend/database/school_transport.db
 backend/rag/chroma_db/

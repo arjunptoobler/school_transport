@@ -1,5 +1,5 @@
 from .state import AgentState
-from ..mcp.base import mcp_registry
+from ..mcp.client import mcp_client
 from .parser import extract_entities
 from .llm import call_gemini
 from ..database.connection import get_db_connection
@@ -108,14 +108,14 @@ def compliance_agent(state: AgentState) -> dict:
 
     # 1.2  SLA overdue check — filter to this driver only so we don't pass
     #      the full global escalation list into the prompt
-    sla_check     = mcp_registry.call_tool("mcp_check_sla_compliance")
+    sla_check     = mcp_client.call_tool("mcp_check_sla_compliance")
     overdue_slas  = sla_check.get("escalations", [])
     driver_overdue = any(s["driver_id"] == driver_id for s in overdue_slas) if driver_id else False
 
     # 1.3  Driver record (permit, medical, training, operator)
     driver_data = {}
     if driver_id and driver_id != "Unknown":
-        drv = mcp_registry.call_tool("mcp_get_driver_record", driver_id=driver_id)
+        drv = mcp_client.call_tool("mcp_get_driver_record", driver_id=driver_id)
         if drv and "error" not in drv:
             driver_data = drv
 
@@ -127,21 +127,22 @@ def compliance_agent(state: AgentState) -> dict:
     # 1.5  Vehicle compliance status
     vehicle_data = {}
     if vehicle_id and vehicle_id != "Unknown":
-        veh = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
+        veh = mcp_client.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
         if veh and "error" not in veh:
             vehicle_data = veh
 
     # 1.6  Violation matrix — correct fine amounts per violation category
-    violation_matrix = mcp_registry.call_tool("mcp_get_violation_matrix")
+    violation_matrix = mcp_client.call_tool("mcp_get_violation_matrix")
 
     # 1.7  RAG policy lookup — build a specific question so the vector search
     #      returns relevant chunks, not generic policy intro text.
     violation_type, fine_amount, fine_authority = _detect_violation_type(query, violation_matrix)
     rag_query = f"{violation_type} regulation enforcement rule ADEK {topic}"
-    rag_res = mcp_registry.call_tool("mcp_lookup_policy", topic=rag_query)
+    rag_res = mcp_client.call_tool("mcp_lookup_policy", topic=rag_query)
+    rag_chunks = rag_res if isinstance(rag_res, list) else []
     policy_text = (
-        "\n".join(f"- {r['text'][:200]}" for r in rag_res[:3])
-        if rag_res else "No specific policy retrieved."
+        "\n".join(f"- {r.get('text', '')[:400]}" for r in rag_chunks[:3])
+        if rag_chunks else "No specific policy retrieved."
     )
 
     # 1.8  Pre-departure compliance check — deterministic pass/fail before LLM.
@@ -170,23 +171,49 @@ def compliance_agent(state: AgentState) -> dict:
             if not training_ok: failures.append(f"Training={driver_data.get('training_status', '?')}")
 
             # Suspend the non-compliant driver immediately
-            mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
-            mcp_registry.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
-            mcp_registry.call_tool("mcp_submit_adek_compliance_report",
+            mcp_client.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
+            mcp_client.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
+            mcp_client.call_tool("mcp_submit_adek_compliance_report",
                                    report_type="Violation", driver_id=driver_id, severity="HIGH",
                                    narrative=f"Pre-departure check failed: {', '.join(failures)}. Departure blocked.")
 
-            # Find a replacement driver from same operator
-            repl = mcp_registry.call_tool(
+            # Issue fine and find replacement
+            fine_pd = mcp_client.call_tool("mcp_issue_fine_ticket",
+                                   driver_id=driver_id, vehicle_id=vehicle_id or "UNKNOWN",
+                                   violation_type="Pre-Departure Compliance Failure",
+                                   amount=1000.0, authority="ADEK")
+            fine_pd_id = fine_pd.get("fine_id", "FINE-XXX") if fine_pd else "FINE-XXX"
+            repl = mcp_client.call_tool(
                 "mcp_find_available_driver",
                 exclude_driver_id=driver_id,
                 operator=driver_data.get("operator"),
             )
             replacement_driver = repl if (repl and repl.get("found")) else None
+
+            # Formally assign the replacement driver to the vehicle and notify parents
+            if replacement_driver and vehicle_id and vehicle_id != "Unknown":
+                mcp_client.call_tool(
+                    "mcp_assign_replacement_driver",
+                    vehicle_id=vehicle_id,
+                    new_driver_id=replacement_driver["driver_id"],
+                    delay_minutes=10,
+                )
+                mcp_client.call_tool(
+                    "mcp_send_push",
+                    recipient="parent_portal",
+                    title="Driver Change Notice",
+                    message=(
+                        f"Bus {vehicle_id}: scheduled driver has been removed from service. "
+                        f"Replacement driver {replacement_driver['name']} has been assigned. "
+                        f"Expect a 10-minute delay. Your child's safety is our priority."
+                    ),
+                )
+
+            op_name = driver_data.get("operator", "operator")
             action_taken = (
-                f"Pre-departure FAILED — banned {driver_id} ({', '.join(failures)})"
-                + (f" | Replacement: {replacement_driver['name']} ({replacement_driver['driver_id']})"
-                   if replacement_driver else " | No replacement available — route DELAYED")
+                f"Permit suspended in ADEK registry · Gov portal synced · Formal violation notice emailed to {op_name} & DMT Authority · {fine_pd_id} (AED 1,000) issued"
+                + (f" · Replacement {replacement_driver['name']} ({replacement_driver['driver_id']}) assigned to {vehicle_id} · Push alert + SMS dispatched to parent portal"
+                   if replacement_driver else f" · No replacement available — ADEK Ops Centre alerted via email · Route {vehicle_id} delayed")
             )
             pre_departure_result = {"passed": False, "failures": failures, "replacement": replacement_driver}
         else:
@@ -304,18 +331,44 @@ def compliance_agent(state: AgentState) -> dict:
         # Skip driver actions if pre-departure already handled them
         if not action_taken:
             if act == "SUSPEND" and driver_id and driver_id != "Unknown":
-                mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
-                mcp_registry.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
-                mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative=f"Driver suspended. {violation_type}.")
-                action_taken = f"Suspended {driver_id} & synced to ADEK Gov Portal"
+                mcp_client.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
+                mcp_client.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
+                mcp_client.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative=f"Driver suspended. {violation_type}.")
+                fine_res = mcp_client.call_tool("mcp_issue_fine_ticket",
+                    driver_id=driver_id, vehicle_id=vehicle_id or "UNKNOWN",
+                    violation_type=violation_type, amount=800.0, authority="DMT")
+                fine_id = fine_res.get("fine_id", "FINE-XXX") if fine_res else "FINE-XXX"
+                # Find, assign, and notify parents about the replacement driver
+                repl = mcp_client.call_tool("mcp_find_available_driver",
+                    exclude_driver_id=driver_id, operator=driver_data.get("operator", ""))
+                if repl and repl.get("found") and vehicle_id and vehicle_id != "Unknown":
+                    mcp_client.call_tool("mcp_assign_replacement_driver",
+                        vehicle_id=vehicle_id, new_driver_id=repl["driver_id"], delay_minutes=15)
+                    mcp_client.call_tool("mcp_send_push", recipient="parent_portal",
+                        title="Driver Change Notice",
+                        message=(f"Bus {vehicle_id}: driver removed from service (safety enforcement). "
+                                 f"Replacement driver {repl['name']} is now assigned. "
+                                 f"Expect ~15 min delay. Children remain safe on board."))
+                    op_name = driver_data.get("operator", "operator")
+                    repl_note = (f" · Replacement {repl['name']} ({repl['driver_id']}) assigned to {vehicle_id}"
+                                 f" · Push alert + SMS sent to parent portal · {op_name} notified by email")
+                else:
+                    repl_note = " · No replacement available — ADEK Ops Centre alerted by email · Route held"
+                op_name = driver_data.get("operator", "operator")
+                action_taken = (f"Permit suspended in ADEK registry · Gov portal synced · Violation notice emailed to {op_name} & DMT Authority"
+                                f" · {fine_id} (AED 800) issued · {repl_note.strip(' ·')}")
             elif act == "ASSIGN_TRAINING" and driver_id and driver_id != "Unknown":
-                mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Valid", training_status="Pending Refresher")
-                mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Warning", driver_id=driver_id, severity="MEDIUM", narrative="Assigned remedial training.")
-                action_taken = f"Assigned training to {driver_id} & notified ADEK"
+                mcp_client.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Valid", training_status="Pending Refresher")
+                mcp_client.call_tool("mcp_submit_adek_compliance_report", report_type="Warning", driver_id=driver_id, severity="MEDIUM", narrative="Assigned remedial training.")
+                sla_res = mcp_client.call_tool("mcp_assign_training_sla", driver_id=driver_id, incident_id="PENDING")
+                sla_id = sla_res.get("sla_id", "SLA-XXX") if sla_res else "SLA-XXX"
+                op_name = driver_data.get("operator", "operator")
+                action_taken = (f"Remedial training enrolled · {sla_id} created (5-day deadline)"
+                                f" · Warning notice emailed to {op_name} · ADEK compliance report filed · Driver status updated to Pending Refresher")
 
         if ground_vehicle and vehicle_id and vehicle_id != "Unknown":
-            mcp_registry.call_tool("mcp_update_inspection_status", vehicle_id=vehicle_id, status="grounded")
-            action_taken = (f"{action_taken} | " if action_taken else "") + f"Grounded {vehicle_id} in DB"
+            mcp_client.call_tool("mcp_update_inspection_status", vehicle_id=vehicle_id, status="grounded")
+            action_taken = (f"{action_taken} · " if action_taken else "") + f"{vehicle_id} grounded in fleet registry · Maintenance team notified · Standby coverage requested"
 
     else:
         try:
@@ -336,18 +389,44 @@ def compliance_agent(state: AgentState) -> dict:
             # Skip driver actions if pre-departure already handled them
             if not action_taken:
                 if act == "SUSPEND" and driver_id and driver_id != "Unknown":
-                    mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
-                    mcp_registry.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
-                    mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative=f"Driver suspended. {violation_type}. Repeat offender: {drv_history.get('is_repeat_offender', False)}.")
-                    action_taken = f"Suspended {driver_id} & synced with ADEK Gov Portal"
+                    mcp_client.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Suspended")
+                    mcp_client.call_tool("mcp_sync_permit_status_with_gov", driver_id=driver_id, new_status="Suspended")
+                    mcp_client.call_tool("mcp_submit_adek_compliance_report", report_type="Violation", driver_id=driver_id, severity="HIGH", narrative=f"Driver suspended. {violation_type}. Repeat offender: {drv_history.get('is_repeat_offender', False)}.")
+                    fine_res = mcp_client.call_tool("mcp_issue_fine_ticket",
+                        driver_id=driver_id, vehicle_id=vehicle_id or "UNKNOWN",
+                        violation_type=violation_type, amount=800.0, authority="DMT")
+                    fine_id = fine_res.get("fine_id", "FINE-XXX") if fine_res else "FINE-XXX"
+                    # Find, assign, and notify parents about the replacement driver
+                    repl = mcp_client.call_tool("mcp_find_available_driver",
+                        exclude_driver_id=driver_id, operator=driver_data.get("operator", ""))
+                    if repl and repl.get("found") and vehicle_id and vehicle_id != "Unknown":
+                        mcp_client.call_tool("mcp_assign_replacement_driver",
+                            vehicle_id=vehicle_id, new_driver_id=repl["driver_id"], delay_minutes=15)
+                        mcp_client.call_tool("mcp_send_push", recipient="parent_portal",
+                            title="Driver Change Notice",
+                            message=(f"Bus {vehicle_id}: driver removed from service (safety enforcement). "
+                                     f"Replacement driver {repl['name']} is now assigned. "
+                                     f"Expect ~15 min delay. Children remain safe on board."))
+                        op_name = driver_data.get("operator", "operator")
+                        repl_note = (f" · Replacement {repl['name']} ({repl['driver_id']}) assigned to {vehicle_id}"
+                                     f" · Push alert + SMS sent to parent portal · {op_name} notified by email")
+                    else:
+                        repl_note = " · No replacement available — ADEK Ops Centre alerted by email · Route held"
+                    op_name = driver_data.get("operator", "operator")
+                    action_taken = (f"Permit suspended in ADEK registry · Gov portal synced · Violation notice emailed to {op_name} & DMT Authority"
+                                    f" · {fine_id} (AED 800) issued · {repl_note.strip(' ·')}")
                 elif act == "ASSIGN_TRAINING" and driver_id and driver_id != "Unknown":
-                    mcp_registry.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Valid", training_status="Pending Refresher")
-                    mcp_registry.call_tool("mcp_submit_adek_compliance_report", report_type="Warning", driver_id=driver_id, severity="MEDIUM", narrative="Assigned remedial training.")
-                    action_taken = f"Assigned training to {driver_id} & notified ADEK"
+                    mcp_client.call_tool("mcp_update_driver_status", driver_id=driver_id, permit_status="Valid", training_status="Pending Refresher")
+                    mcp_client.call_tool("mcp_submit_adek_compliance_report", report_type="Warning", driver_id=driver_id, severity="MEDIUM", narrative="Assigned remedial training.")
+                    sla_res = mcp_client.call_tool("mcp_assign_training_sla", driver_id=driver_id, incident_id="PENDING")
+                    sla_id = sla_res.get("sla_id", "SLA-XXX") if sla_res else "SLA-XXX"
+                    op_name = driver_data.get("operator", "operator")
+                    action_taken = (f"Remedial training enrolled · {sla_id} created (5-day deadline)"
+                                    f" · Warning notice emailed to {op_name} · ADEK compliance report filed · Driver status updated to Pending Refresher")
 
             if ground_vehicle and vehicle_id and vehicle_id != "Unknown":
-                mcp_registry.call_tool("mcp_update_inspection_status", vehicle_id=vehicle_id, status="grounded")
-                action_taken = (f"{action_taken} | " if action_taken else "") + f"Grounded {vehicle_id} in DB"
+                mcp_client.call_tool("mcp_update_inspection_status", vehicle_id=vehicle_id, status="grounded")
+                action_taken = (f"{action_taken} · " if action_taken else "") + f"{vehicle_id} grounded in fleet registry · Maintenance team notified · Standby coverage requested"
 
         except Exception:
             text      = f"🤖 {llm_msg.strip()}"

@@ -153,7 +153,7 @@ def get_recent_boardings():
 
 @router.get("/routes")
 def get_routing_scenario_data():
-    """Return roadblocks, vehicle coordinates, and GeoJSON geometries for London demo routes."""
+    """Return roadblocks, vehicle coordinates, and GeoJSON geometries for Abu Dhabi demo routes."""
     from ..routing_solver import calculate_route
     conn = get_db_connection()
     try:
@@ -167,10 +167,10 @@ def get_routing_scenario_data():
         cursor.execute("SELECT vehicle_id, license_plate, current_lat, current_lon, assigned_route, inspection_status, gps_status, capacity, current_occupancy FROM vehicles WHERE vehicle_id IN ('AU-BUS-104', 'AU-BUS-106')")
         vehicles = [dict(r) for r in cursor.fetchall()]
         
-        # 3. Calculate path geometries on-demand
-        depot = [-0.1500, 51.5030]
-        school = [-0.1220, 51.5120]
-        rb_coords = [-0.1420, 51.5070]
+        # 3. Calculate path geometries on-demand (Abu Dhabi: lon, lat for GeoJSON)
+        depot = [54.3525, 24.4361]     # Mussafah Bus Depot
+        school = [54.3710, 24.4672]    # Al Mushrif School Zone
+        rb_coords = [54.3650, 24.4539] # Khalidiyah road closure point
         
         route_normal = calculate_route(depot, school)
         route_detour = calculate_route(depot, school, roadblock=rb_coords)

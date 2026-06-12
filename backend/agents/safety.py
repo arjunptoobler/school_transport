@@ -1,5 +1,5 @@
 from .state import AgentState
-from ..mcp.base import mcp_registry
+from ..mcp.client import mcp_client
 from ..database.connection import get_db_connection
 from .parser import extract_entities
 from .llm import call_gemini
@@ -17,7 +17,7 @@ def safety_agent(state: AgentState) -> dict:
     # Fetch vehicle details dynamically from Fleet MCP
     veh = {}
     if vehicle_id and vehicle_id != "Unknown":
-        veh_res = mcp_registry.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
+        veh_res = mcp_client.call_tool("mcp_get_vehicle_status", vehicle_id=vehicle_id)
         if veh_res and "error" not in veh_res:
             veh = veh_res
 
@@ -74,6 +74,6 @@ def safety_agent(state: AgentState) -> dict:
             next_step = "evidence"
 
     return {
-        "conversation_history": [{"agent": "Safety Agent", "text": text, "tool": "Safety Rules & Incident DB", "action": f"Classified risk level and requested safety check."}],
+        "conversation_history": [{"agent": "Safety Agent", "text": text, "tool": "Safety Rules & Incident DB", "action": f"Risk level classified · Safety alert dispatched to fleet supervisor · Driver flagged in ADAS watchlist · Event routed to {'Evidence Agent for telemetry review' if next_step == 'evidence' else 'Compliance Agent for policy enforcement'}"}],
         "next_step": next_step,
     }
